@@ -33,6 +33,7 @@ vm.createContext(sandbox);
 
 const files = [
     'keybard/pages/js/util.js',
+    'keybard/pages/js/usbutil.js',
     'keybard/pages/js/svalboard.js',
     'keybard/pages/js/keygen.js',
     'keybard/pages/js/languages.js',
