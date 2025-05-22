@@ -10,9 +10,16 @@ The `keybard` directory in this repository is a git submodule. It contains the c
 
 ### Devbox
 
-Devbox creates isolated, reproducible development environments that run anywhere. No Docker containers or Nix lang required.
+[Devbox](https://www.jetify.com/devbox/) creates isolated, reproducible development environments. It ensures that you have the correct versions of Node.js (currently 22), libusb (version 1), and udev, as specified in the `devbox.json` file, without requiring Docker or manual Nix language configuration. This is the recommended way to set up your development environment for KeyBard CLI.
 
-For this project, we want specific versions of Node. Additionally, we want to make sure that our keyboard is accessible via USB.
+**Setting up with Devbox:**
+
+1.  **Install Devbox:** Follow the [official installation guide](https://www.jetify.com/devbox/docs/installing_devbox/) to install Devbox on your system.
+2.  **Initialize the Devbox Shell:** Navigate to the root directory of this project in your terminal and run:
+    ```bash
+    devbox shell
+    ```
+    This command will automatically read the `devbox.json` file, install the specified packages if they are missing, and configure your shell environment. You are now ready to proceed with the installation steps below.
 
 ## Getting Started
 
@@ -20,8 +27,12 @@ This section will guide you through setting up and using the KeyBard CLI.
 
 ### Prerequisites
 
-*   Node.js and npm: Ensure you have Node.js and npm installed on your system.
+*   Node.js and npm: Ensure you have Node.js (version 22 recommended) and npm installed on your system.
+*   libusb (version 1): Required for direct USB communication with the keyboard.
+*   udev: Ensures proper device permissions and handling on Linux systems.
 *   KeyBard-compatible device: A Svalboard or other KeyBard-compatible keyboard must be connected to your computer via USB for most operations.
+
+These dependencies can be automatically managed by using [Devbox](https://www.jetify.com/devbox/). Alternatively, you can install them manually. The versions specified in the `devbox.json` file are recommended: Node.js 22, libusb1, and udev.
 
 ### Installation
 
@@ -30,10 +41,12 @@ This section will guide you through setting up and using the KeyBard CLI.
     git clone --recurse-submodules <repository-url>
     cd keybard-cli
     ```
-2.  Install dependencies:
+2.  If you are using Devbox, ensure you are in the Devbox shell (run `devbox shell` from the project root if you haven't already).
+3.  Install dependencies:
     ```bash
     npm install
     ```
+    *(If you are not using Devbox, make sure you have manually installed the prerequisites outlined above (Node.js 22, libusb1, and udev) and that they are accessible in your system's PATH before running `npm install`.)*
 
 ### Basic Usage
 
