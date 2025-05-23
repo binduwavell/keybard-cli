@@ -10,13 +10,13 @@
 
 This file lists planned command-line interface (CLI) commands for KeyBard CLI, based on the non-UI capabilities of the KeyBard core library.
 
-*   [ ] `keybard-cli get keyboard-info`: Pull all available information from the connected keyboard (replaces the old dump command; pulls all available information from the connected keyboard, perhaps with more formatting options or ability to save to a file).
-*   [ ] `keybard-cli get keymap [--layer N] [--output <format>]`: View keymap, optionally for a specific layer, and specify output format (e.g., JSON, text).
-*   [ ] `keybard-cli set keymap <key_definition> --position <pos> [--layer N]`: Set a specific key on the keymap.
-*   [ ] `keybard-cli upload keymap <filepath.json>`: Load a full keymap from a file and apply to the keyboard.
-*   [ ] `keybard-cli download keymap <filepath.json>`: Save the current keyboard keymap to a file.
-*   [ ] `keybard-cli list macros`: List all macros.
-*   [ ] `keybard-cli get macro <id_or_name>`: View a specific macro.
+*   [x] `keybard-cli get keyboard-info`: Pull all available information from the connected keyboard (replaces the old dump command; pulls all available information from the connected keyboard, perhaps with more formatting options or ability to save to a file).
+*   [x] `keybard-cli get keymap [--layer N] [--output <format>]`: View keymap, optionally for a specific layer, and specify output format (e.g., JSON, text).
+*   [x] `keybard-cli set keymap <key_definition> --position <pos> [--layer N]`: Set a specific key on the keymap.
+*   [x] `keybard-cli upload keymap <filepath.json>`: Load a full keymap from a file and apply to the keyboard.
+*   [x] `keybard-cli download keymap <filepath.json>`: Save the current keyboard keymap to a file.
+*   [x] `keybard-cli list macros`: List all macros.
+*   [x] `keybard-cli get macro <id_or_name>`: View a specific macro.
 *   [ ] `keybard-cli add macro "<sequence_definition>"`: Add a new macro (e.g., "CTRL+C"). (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [ ] `keybard-cli edit macro <id_or_name> "<new_sequence_definition>"`: Edit an existing macro. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [ ] `keybard-cli delete macro <id_or_name>`: Remove a macro.
