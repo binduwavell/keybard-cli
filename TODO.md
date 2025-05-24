@@ -23,15 +23,15 @@ This file lists planned command-line interface (CLI) commands for KeyBard CLI, b
 *   [x] `keybard-cli list tapdances`: List all tapdances.
 *   [x] `keybard-cli get tapdance <id_or_name>`: View a specific tapdance.
 *   [x] `keybard-cli add tapdance "<sequence_definition>"`: Add a new tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli edit tapdance <id_or_name> "<new_sequence_definition>"`: Edit an existing tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli delete tapdance <id_or_name>`: Remove a tapdance.
-*   [ ] `keybard-cli list combos`: List all combos.
-*   [ ] `keybard-cli get combo <id_or_name>`: View a specific combo.
-*   [ ] `keybard-cli add combo "<key1>+<key2> <action_key>"`: Add a new combo. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli edit combo <id_or_name> "<new_key1>+<new_key2> <new_action_key>"`: Edit an existing combo. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli delete combo <id_or_name>`: Remove a combo.
-*   [ ] `keybard-cli list key-overrides`: List all key overrides.
-*   [ ] `keybard-cli get key-override <id_or_name>`: View a specific key override.
+*   [x] `keybard-cli edit tapdance <id_or_name> "<new_sequence_definition>"`: Edit an existing tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli delete tapdance <id_or_name>`: Remove a tapdance.
+*   [x] `keybard-cli list combos`: List all combos.
+*   [x] `keybard-cli get combo <id_or_name>`: View a specific combo.
+*   [x] `keybard-cli add combo "<key1>+<key2> <action_key>"`: Add a new combo. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli edit combo <id_or_name> "<new_key1>+<new_key2> <new_action_key>"`: Edit an existing combo. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli delete combo <id_or_name>`: Remove a combo.
+*   [x] `keybard-cli list key-overrides`: List all key overrides.
+*   [x] `keybard-cli get key-override <id_or_name>`: View a specific key override.
 *   [ ] `keybard-cli add key-override "<trigger_key> <override_key>"`: Add a new key override. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [ ] `keybard-cli edit key-override <id_or_name> "<new_trigger_key> <new_override_key>"`: Edit an existing key override. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [ ] `keybard-cli delete key-override <id_or_name>`: Remove a key override.
