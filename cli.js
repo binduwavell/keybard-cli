@@ -146,6 +146,30 @@ program
   });
 
 program
+  .command('upload file <filepath>')
+  .description('Upload and apply a .vil (Vial keymap) or .svl (Svalboard/KeyBard full config) file to the keyboard.')
+  .addHelpText('after', '\nSupported file types: .vil, .svl')
+  .action((filepath, options) => {
+    const uploadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/upload_file.js'), 'utf8');
+    vm.runInContext(uploadFileScript, sandbox);
+    // The script exposes runUploadFile on the global object in the sandbox
+    // process.exitCode will be set by runUploadFile itself.
+    sandbox.global.runUploadFile(filepath, options);
+  });
+
+program
+  .command('download file <filepath>')
+  .description('Download the current keyboard configuration (keymap, macros, overrides, settings) to an .svl file.')
+  .addHelpText('after', '\nOutput file must have an .svl extension.')
+  .action((filepath, options) => {
+    const downloadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/download_file.js'), 'utf8');
+    vm.runInContext(downloadFileScript, sandbox);
+    // The script exposes runDownloadFile on the global object in the sandbox
+    // process.exitCode will be set by runDownloadFile itself.
+    sandbox.global.runDownloadFile(filepath, options);
+  });
+
+program
   .command('list macros')
   .description('List all macros from the keyboard.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
@@ -327,6 +351,41 @@ program
   });
 
 program
+  .command('add key-override <trigger_key_string> <override_key_string>')
+  .description('Add a new key override (e.g., "KC_A KC_B" to make KC_A behave as KC_B).')
+  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
+  .action((triggerKeyString, overrideKeyString, options) => {
+    const addKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/add_key_override.js'), 'utf8');
+    vm.runInContext(addKeyOverrideScript, sandbox);
+    // The script exposes runAddKeyOverride on the global object in the sandbox
+    // process.exitCode will be set by runAddKeyOverride itself.
+    sandbox.global.runAddKeyOverride(triggerKeyString, overrideKeyString, options); // Pass options if any
+  });
+
+program
+  .command('edit key-override <id> <new_trigger_key_string> <new_override_key_string>')
+  .description('Edit an existing key override by ID (e.g., "0 KC_B KC_C" to change override 0 to KC_B -> KC_C).')
+  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
+  .action((id, newTriggerKeyString, newOverrideKeyString, options) => {
+    const editKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/edit_key_override.js'), 'utf8');
+    vm.runInContext(editKeyOverrideScript, sandbox);
+    // The script exposes runEditKeyOverride on the global object in the sandbox
+    // process.exitCode will be set by runEditKeyOverride itself.
+    sandbox.global.runEditKeyOverride(id, newTriggerKeyString, newOverrideKeyString, options);
+  });
+
+program
+  .command('delete key-override <id>')
+  .description('Delete a key override by its ID (e.g., "0" to delete override 0). This sets its keys to 0.')
+  .action((id, options) => { // options for future use, if any
+    const deleteKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/delete_key_override.js'), 'utf8');
+    vm.runInContext(deleteKeyOverrideScript, sandbox);
+    // The script exposes runDeleteKeyOverride on the global object in the sandbox
+    // process.exitCode will be set by runDeleteKeyOverride itself.
+    sandbox.global.runDeleteKeyOverride(id, options);
+  });
+
+program
   .command('list key-overrides')
   .description('List all key overrides from the keyboard.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
@@ -338,8 +397,45 @@ program
     // process.exitCode will be set by runListKeyOverrides itself.
     sandbox.global.runListKeyOverrides({
       format: options.format,
-      outputFile: options.output
+      outputFile: options.output // Note: list_key_overrides.js uses options.output, not options.outputFile
     });
+  });
+
+program
+  .command('list qmk-settings')
+  .description('List all available QMK settings and their current values from the keyboard.')
+  .option('-o, --output-file <filepath>', 'Save settings as JSON to a file.')
+  .action((options) => {
+    const listQmkSettingsScript = fs.readFileSync(path.resolve(__dirname, 'lib/list_qmk_settings.js'), 'utf8');
+    vm.runInContext(listQmkSettingsScript, sandbox);
+    // The script exposes runListQmkSettings on the global object in the sandbox
+    // process.exitCode will be set by runListQmkSettings itself.
+    // The options object from commander will contain `outputFile` if the user provides it.
+    sandbox.global.runListQmkSettings(options);
+  });
+
+program
+  .command('get qmk-setting <setting_name>')
+  .description('View a specific QMK setting by its name from the keyboard.')
+  // .option('-o, --output <filepath>', 'Specify output file for the setting (e.g., JSON)') // Future option
+  .action((settingName, options) => {
+    const getQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/get_qmk_setting.js'), 'utf8');
+    vm.runInContext(getQmkSettingScript, sandbox);
+    // The script exposes runGetQmkSetting on the global object in the sandbox
+    // process.exitCode will be set by runGetQmkSetting itself.
+    sandbox.global.runGetQmkSetting(settingName, options);
+  });
+
+program
+  .command('set qmk-setting <setting_name> <value>')
+  .description('Change a QMK setting on the keyboard by its name and new value.')
+  .addHelpText('after', '\nExamples:\n  keybard-cli set qmk-setting TapToggleEnable true\n  keybard-cli set qmk-setting MaxTapTime 200\n  keybard-cli set qmk-setting UserFullName "John Doe"')
+  .action((settingName, value, options) => {
+    const setQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/set_qmk_setting.js'), 'utf8');
+    vm.runInContext(setQmkSettingScript, sandbox);
+    // The script exposes runSetQmkSetting on the global object in the sandbox
+    // process.exitCode will be set by runSetQmkSetting itself.
+    sandbox.global.runSetQmkSetting(settingName, value, options);
   });
 
 program
