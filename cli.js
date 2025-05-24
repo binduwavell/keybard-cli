@@ -161,6 +161,82 @@ program
     });
   });
 
+program
+  .command('add macro <sequence_definition>')
+  .description('Add a new macro with a sequence definition string (e.g., "KC_A,DELAY(100),LCTL(KC_C)").')
+  .action((sequenceDefinition, options) => {
+    const addMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/add_macro.js'), 'utf8');
+    vm.runInContext(addMacroScript, sandbox);
+    // The script exposes runAddMacro on the global object in the sandbox
+    // process.exitCode will be set by runAddMacro itself.
+    sandbox.global.runAddMacro(sequenceDefinition, options); // options might be used later
+  });
+
+program
+  .command('edit macro <id> <new_sequence_definition>')
+  .description('Edit an existing macro by its ID with a new sequence definition.')
+  .action((id, newSequenceDefinition, options) => {
+    const editMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/edit_macro.js'), 'utf8');
+    vm.runInContext(editMacroScript, sandbox);
+    // The script exposes runEditMacro on the global object in the sandbox
+    // process.exitCode will be set by runEditMacro itself.
+    sandbox.global.runEditMacro(id, newSequenceDefinition, options); // options might be used later
+  });
+
+program
+  .command('delete macro <id>')
+  .description('Delete a macro by its ID (clears its actions).')
+  .action((id, options) => { // options might be used later if flags are added
+    const deleteMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/delete_macro.js'), 'utf8');
+    vm.runInContext(deleteMacroScript, sandbox);
+    // The script exposes runDeleteMacro on the global object in the sandbox
+    // process.exitCode will be set by runDeleteMacro itself.
+    sandbox.global.runDeleteMacro(id, options); 
+  });
+
+program
+  .command('list tapdances')
+  .description('List all tapdances from the keyboard.')
+  .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
+  .option('-o, --output <filepath>', 'Specify output file for the tapdance list')
+  .action((options) => {
+    const listTapdancesScript = fs.readFileSync(path.resolve(__dirname, 'lib/list_tapdances.js'), 'utf8');
+    vm.runInContext(listTapdancesScript, sandbox);
+    // The script exposes runListTapdances on the global object in the sandbox
+    // process.exitCode will be set by runListTapdances itself.
+    sandbox.global.runListTapdances({
+      format: options.format,
+      outputFile: options.output
+    });
+  });
+
+program
+  .command('get tapdance <id>')
+  .description('View a specific tapdance by its ID.')
+  .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
+  .option('-o, --output <filepath>', 'Specify output file for the tapdance data')
+  .action((id, options) => {
+    const getTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/get_tapdance.js'), 'utf8');
+    vm.runInContext(getTapdanceScript, sandbox);
+    // The script exposes runGetTapdance on the global object in the sandbox
+    // process.exitCode will be set by runGetTapdance itself.
+    sandbox.global.runGetTapdance(id, {
+      format: options.format,
+      outputFile: options.output
+    });
+  });
+
+program
+  .command('add tapdance <sequence_definition>')
+  .description('Add a new tapdance with a sequence definition string (e.g., "TAP(KC_A),TERM(200)").')
+  .action((sequenceDefinition, options) => {
+    const addTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/add_tapdance.js'), 'utf8');
+    vm.runInContext(addTapdanceScript, sandbox);
+    // The script exposes runAddTapdance on the global object in the sandbox
+    // process.exitCode will be set by runAddTapdance itself.
+    sandbox.global.runAddTapdance(sequenceDefinition, options); // options for future use
+  });
+
 // Keep the original simple 'list' command for USB devices
 program.command('list devices').description('List connected USB HID devices compatible with Vial.').action(() => {
   vm.runInContext('USB.list();', sandbox);

@@ -17,12 +17,12 @@ This file lists planned command-line interface (CLI) commands for KeyBard CLI, b
 *   [x] `keybard-cli download keymap <filepath.json>`: Save the current keyboard keymap to a file.
 *   [x] `keybard-cli list macros`: List all macros.
 *   [x] `keybard-cli get macro <id_or_name>`: View a specific macro.
-*   [ ] `keybard-cli add macro "<sequence_definition>"`: Add a new macro (e.g., "CTRL+C"). (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli edit macro <id_or_name> "<new_sequence_definition>"`: Edit an existing macro. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli delete macro <id_or_name>`: Remove a macro.
-*   [ ] `keybard-cli list tapdances`: List all tapdances.
-*   [ ] `keybard-cli get tapdance <id_or_name>`: View a specific tapdance.
-*   [ ] `keybard-cli add tapdance "<sequence_definition>"`: Add a new tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli add macro "<sequence_definition>"`: Add a new macro (e.g., "CTRL+C"). (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli edit macro <id_or_name> "<new_sequence_definition>"`: Edit an existing macro. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli delete macro <id_or_name>`: Remove a macro.
+*   [x] `keybard-cli list tapdances`: List all tapdances.
+*   [x] `keybard-cli get tapdance <id_or_name>`: View a specific tapdance.
+*   [x] `keybard-cli add tapdance "<sequence_definition>"`: Add a new tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [ ] `keybard-cli edit tapdance <id_or_name> "<new_sequence_definition>"`: Edit an existing tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [ ] `keybard-cli delete tapdance <id_or_name>`: Remove a tapdance.
 *   [ ] `keybard-cli list combos`: List all combos.
