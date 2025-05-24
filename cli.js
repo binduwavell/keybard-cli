@@ -327,6 +327,41 @@ program
   });
 
 program
+  .command('add key-override <trigger_key_string> <override_key_string>')
+  .description('Add a new key override (e.g., "KC_A KC_B" to make KC_A behave as KC_B).')
+  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
+  .action((triggerKeyString, overrideKeyString, options) => {
+    const addKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/add_key_override.js'), 'utf8');
+    vm.runInContext(addKeyOverrideScript, sandbox);
+    // The script exposes runAddKeyOverride on the global object in the sandbox
+    // process.exitCode will be set by runAddKeyOverride itself.
+    sandbox.global.runAddKeyOverride(triggerKeyString, overrideKeyString, options); // Pass options if any
+  });
+
+program
+  .command('edit key-override <id> <new_trigger_key_string> <new_override_key_string>')
+  .description('Edit an existing key override by ID (e.g., "0 KC_B KC_C" to change override 0 to KC_B -> KC_C).')
+  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
+  .action((id, newTriggerKeyString, newOverrideKeyString, options) => {
+    const editKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/edit_key_override.js'), 'utf8');
+    vm.runInContext(editKeyOverrideScript, sandbox);
+    // The script exposes runEditKeyOverride on the global object in the sandbox
+    // process.exitCode will be set by runEditKeyOverride itself.
+    sandbox.global.runEditKeyOverride(id, newTriggerKeyString, newOverrideKeyString, options);
+  });
+
+program
+  .command('delete key-override <id>')
+  .description('Delete a key override by its ID (e.g., "0" to delete override 0). This sets its keys to 0.')
+  .action((id, options) => { // options for future use, if any
+    const deleteKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/delete_key_override.js'), 'utf8');
+    vm.runInContext(deleteKeyOverrideScript, sandbox);
+    // The script exposes runDeleteKeyOverride on the global object in the sandbox
+    // process.exitCode will be set by runDeleteKeyOverride itself.
+    sandbox.global.runDeleteKeyOverride(id, options);
+  });
+
+program
   .command('list key-overrides')
   .description('List all key overrides from the keyboard.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
