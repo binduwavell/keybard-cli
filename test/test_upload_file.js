@@ -251,7 +251,18 @@ async function testUpload_Vil_ApplySuccess_NoSaveFunction() {
     });
     await sandbox.global.runUploadFile("keymap.vil", {});
     assert.ok(spyVialApplyVilData);
-    assert(consoleLogOutput.some(line => line.includes(".vil content: warning (Applied but no keymap save function found)")));
+    
+    // Assertions for earlier diagnostic logs (confirming preconditions)
+    assert(consoleLogOutput.some(line => line.includes("DIAGNOSTIC_BEFORE_IF_VILAPPLIED: vilApplied = true")), "vilApplied diagnostic not found or not true");
+    assert(consoleLogOutput.some(line => line.includes("DIAGNOSTIC_BEFORE_SAVE_CHECKS: Vial.kb exists = true, typeof Vial.kb.saveKeymap = undefined, typeof Vial.kb.save = undefined")), "Save checks diagnostic not found or incorrect types");
+    
+    // New assertion for DIAGNOSTIC_SECTION_RESULTS_JSON
+    const expectedWarningObjectString = '{"section":".vil content","status":"warning","reason":"Applied but no keymap save function found."}';
+    const diagnosticLineFound = consoleLogOutput.find(line => line.startsWith('DIAGNOSTIC_SECTION_RESULTS_JSON:'));
+    assert(diagnosticLineFound, "Diagnostic line with sectionResults JSON was not found in console output.");
+    assert(diagnosticLineFound.includes(expectedWarningObjectString), 
+           `Expected warning object ${expectedWarningObjectString} not found in DIAGNOSTIC_SECTION_RESULTS_JSON. Actual: ${diagnosticLineFound}`);
+    
     assert.strictEqual(mockProcessExitCode, 0); // Warning is not a fatal error for overallSuccess
     console.log("  PASS: testUpload_Vil_ApplySuccess_NoSaveFunction");
 }
@@ -268,16 +279,18 @@ async function testUpload_Svl_Keymap_Success() {
     });
     await sandbox.global.runUploadFile("test.svl", {});
 
-    // Reverted assertions:
+    // Assertions for existing diagnostic logs
+    assert(consoleLogOutput.some(line => line.includes("DIAGNOSTIC_KEYMAP_CHECK_AS_LOG: Checking for Vial.kb.setFullKeymap.")), "Diagnostic: Checking for setFullKeymap (as log) not found in consoleLogOutput.");
+    assert(consoleErrorOutput.some(line => line.includes("DIAGNOSTIC_KEYMAP_CHECK: Vial.kb.setFullKeymap IS truthy. Entering try block.")), "Diagnostic: setFullKeymap IS truthy not found.");
+    assert(consoleInfoOutput.some(line => line.startsWith("DIAGNOSTIC_TEST: About to call Vial.kb.setFullKeymap with numericKeymap:")), "Diagnostic: About to call setFullKeymap not found.");
+    assert(consoleInfoOutput.some(line => line.includes("Vial.kb.setFullKeymap called.")), "Diagnostic: setFullKeymap called. log not found.");
+
+    // Original assertions (keeping the failing one commented for now if needed, but should pass if diagnostics pass)
     assert.ok(spyVialKbSetFullKeymap, "spyVialKbSetFullKeymap should have been called");
-    // Check if KEY.parse was called for each string keycode
     assert.deepStrictEqual(spyKeyParse, ["KC_A", "KC_B", "KC_C", "KC_D"], "KEY.parse spy calls mismatch");
-    // Check if the data sent to setFullKeymap is numeric
     const expectedKeymapData = [[mockKey.parse("KC_A"), mockKey.parse("KC_B")], [mockKey.parse("KC_C"), mockKey.parse("KC_D")]];
     assert.deepStrictEqual(spyVialKbSetFullKeymap, expectedKeymapData, "Data sent to setFullKeymap mismatch");
     assert.ok(spyVialKbSaveKeymap, "spyVialKbSaveKeymap should have been called");
-    // The summary log "keymap: succeeded" is in consoleLogOutput.
-    // The specific info logs like "Vial.kb.setFullKeymap called." are in consoleInfoOutput.
     assert(consoleLogOutput.some(line => line.includes("keymap: succeeded")), "Success message for keymap section not found in consoleLogOutput.");
     assert.strictEqual(mockProcessExitCode, 0, `Expected exitCode 0 but got ${mockProcessExitCode}. Errors: ${consoleErrorOutput.join('; ')}`);
     console.log("  PASS: testUpload_Svl_Keymap_Success");

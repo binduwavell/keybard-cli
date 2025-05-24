@@ -274,7 +274,7 @@ async function testError_VialTapdancePushFails() {
 async function testError_VialKbSaveTapDancesFails() {
     setupTestEnvironment({}, {}, {}, { saveTapDances: async () => { throw new Error("Save TD Edit Failed"); } });
     await sandbox.global.runEditTapdance("0", "TAP(KC_A)", {});
-    assert(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Save Failed")));
+    assert(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Save TD Edit Failed")));
     assert.strictEqual(mockProcessExitCode, 1);
     console.log("  PASS: testError_VialKbSaveTapDancesFails");
 }
