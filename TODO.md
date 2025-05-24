@@ -35,8 +35,8 @@ This file lists planned command-line interface (CLI) commands for KeyBard CLI, b
 *   [x] `keybard-cli add key-override "<trigger_key> <override_key>"`: Add a new key override. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [x] `keybard-cli edit key-override <id_or_name> "<new_trigger_key> <new_override_key>"`: Edit an existing key override. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [x] `keybard-cli delete key-override <id_or_name>`: Remove a key override.
-*   [ ] `keybard-cli list qmk-settings`: List all available QMK settings and their current values.
-*   [ ] `keybard-cli get qmk-setting <setting_name>`: View a specific QMK setting.
-*   [ ] `keybard-cli set qmk-setting <setting_name> <value>`: Change a QMK setting.
-*   [ ] `keybard-cli upload file <filepath.vil | filepath.svl>`: Upload and apply a `.vil` (Vial keymap) or `.svl` (Svalboard/KeyBard keymap) file to the keyboard.
-*   [ ] `keybard-cli download file <filepath.svl>`: Download the current keyboard configuration to an `.svl` file.
+*   [x] `keybard-cli list qmk-settings`: List all available QMK settings and their current values.
+*   [x] `keybard-cli get qmk-setting <setting_name>`: View a specific QMK setting.
+*   [x] `keybard-cli set qmk-setting <setting_name> <value>`: Change a QMK setting.
+*   [x] `keybard-cli upload file <filepath.vil | filepath.svl>`: Upload and apply a `.vil` (Vial keymap) or `.svl` (Svalboard/KeyBard keymap) file to the keyboard.
+*   [x] `keybard-cli download file <filepath.svl>`: Download the current keyboard configuration to an `.svl` file.

@@ -146,6 +146,30 @@ program
   });
 
 program
+  .command('upload file <filepath>')
+  .description('Upload and apply a .vil (Vial keymap) or .svl (Svalboard/KeyBard full config) file to the keyboard.')
+  .addHelpText('after', '\nSupported file types: .vil, .svl')
+  .action((filepath, options) => {
+    const uploadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/upload_file.js'), 'utf8');
+    vm.runInContext(uploadFileScript, sandbox);
+    // The script exposes runUploadFile on the global object in the sandbox
+    // process.exitCode will be set by runUploadFile itself.
+    sandbox.global.runUploadFile(filepath, options);
+  });
+
+program
+  .command('download file <filepath>')
+  .description('Download the current keyboard configuration (keymap, macros, overrides, settings) to an .svl file.')
+  .addHelpText('after', '\nOutput file must have an .svl extension.')
+  .action((filepath, options) => {
+    const downloadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/download_file.js'), 'utf8');
+    vm.runInContext(downloadFileScript, sandbox);
+    // The script exposes runDownloadFile on the global object in the sandbox
+    // process.exitCode will be set by runDownloadFile itself.
+    sandbox.global.runDownloadFile(filepath, options);
+  });
+
+program
   .command('list macros')
   .description('List all macros from the keyboard.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
@@ -373,8 +397,45 @@ program
     // process.exitCode will be set by runListKeyOverrides itself.
     sandbox.global.runListKeyOverrides({
       format: options.format,
-      outputFile: options.output
+      outputFile: options.output // Note: list_key_overrides.js uses options.output, not options.outputFile
     });
+  });
+
+program
+  .command('list qmk-settings')
+  .description('List all available QMK settings and their current values from the keyboard.')
+  .option('-o, --output-file <filepath>', 'Save settings as JSON to a file.')
+  .action((options) => {
+    const listQmkSettingsScript = fs.readFileSync(path.resolve(__dirname, 'lib/list_qmk_settings.js'), 'utf8');
+    vm.runInContext(listQmkSettingsScript, sandbox);
+    // The script exposes runListQmkSettings on the global object in the sandbox
+    // process.exitCode will be set by runListQmkSettings itself.
+    // The options object from commander will contain `outputFile` if the user provides it.
+    sandbox.global.runListQmkSettings(options);
+  });
+
+program
+  .command('get qmk-setting <setting_name>')
+  .description('View a specific QMK setting by its name from the keyboard.')
+  // .option('-o, --output <filepath>', 'Specify output file for the setting (e.g., JSON)') // Future option
+  .action((settingName, options) => {
+    const getQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/get_qmk_setting.js'), 'utf8');
+    vm.runInContext(getQmkSettingScript, sandbox);
+    // The script exposes runGetQmkSetting on the global object in the sandbox
+    // process.exitCode will be set by runGetQmkSetting itself.
+    sandbox.global.runGetQmkSetting(settingName, options);
+  });
+
+program
+  .command('set qmk-setting <setting_name> <value>')
+  .description('Change a QMK setting on the keyboard by its name and new value.')
+  .addHelpText('after', '\nExamples:\n  keybard-cli set qmk-setting TapToggleEnable true\n  keybard-cli set qmk-setting MaxTapTime 200\n  keybard-cli set qmk-setting UserFullName "John Doe"')
+  .action((settingName, value, options) => {
+    const setQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/set_qmk_setting.js'), 'utf8');
+    vm.runInContext(setQmkSettingScript, sandbox);
+    // The script exposes runSetQmkSetting on the global object in the sandbox
+    // process.exitCode will be set by runSetQmkSetting itself.
+    sandbox.global.runSetQmkSetting(settingName, value, options);
   });
 
 program
