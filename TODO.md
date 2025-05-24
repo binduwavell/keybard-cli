@@ -10,28 +10,28 @@
 
 This file lists planned command-line interface (CLI) commands for KeyBard CLI, based on the non-UI capabilities of the KeyBard core library.
 
-*   [ ] `keybard-cli get keyboard-info`: Pull all available information from the connected keyboard (replaces the old dump command; pulls all available information from the connected keyboard, perhaps with more formatting options or ability to save to a file).
-*   [ ] `keybard-cli get keymap [--layer N] [--output <format>]`: View keymap, optionally for a specific layer, and specify output format (e.g., JSON, text).
-*   [ ] `keybard-cli set keymap <key_definition> --position <pos> [--layer N]`: Set a specific key on the keymap.
-*   [ ] `keybard-cli upload keymap <filepath.json>`: Load a full keymap from a file and apply to the keyboard.
-*   [ ] `keybard-cli download keymap <filepath.json>`: Save the current keyboard keymap to a file.
-*   [ ] `keybard-cli list macros`: List all macros.
-*   [ ] `keybard-cli get macro <id_or_name>`: View a specific macro.
-*   [ ] `keybard-cli add macro "<sequence_definition>"`: Add a new macro (e.g., "CTRL+C"). (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli edit macro <id_or_name> "<new_sequence_definition>"`: Edit an existing macro. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli delete macro <id_or_name>`: Remove a macro.
-*   [ ] `keybard-cli list tapdances`: List all tapdances.
-*   [ ] `keybard-cli get tapdance <id_or_name>`: View a specific tapdance.
-*   [ ] `keybard-cli add tapdance "<sequence_definition>"`: Add a new tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli edit tapdance <id_or_name> "<new_sequence_definition>"`: Edit an existing tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli delete tapdance <id_or_name>`: Remove a tapdance.
-*   [ ] `keybard-cli list combos`: List all combos.
-*   [ ] `keybard-cli get combo <id_or_name>`: View a specific combo.
-*   [ ] `keybard-cli add combo "<key1>+<key2> <action_key>"`: Add a new combo. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli edit combo <id_or_name> "<new_key1>+<new_key2> <new_action_key>"`: Edit an existing combo. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
-*   [ ] `keybard-cli delete combo <id_or_name>`: Remove a combo.
-*   [ ] `keybard-cli list key-overrides`: List all key overrides.
-*   [ ] `keybard-cli get key-override <id_or_name>`: View a specific key override.
+*   [x] `keybard-cli get keyboard-info`: Pull all available information from the connected keyboard (replaces the old dump command; pulls all available information from the connected keyboard, perhaps with more formatting options or ability to save to a file).
+*   [x] `keybard-cli get keymap [--layer N] [--output <format>]`: View keymap, optionally for a specific layer, and specify output format (e.g., JSON, text).
+*   [x] `keybard-cli set keymap <key_definition> --position <pos> [--layer N]`: Set a specific key on the keymap.
+*   [x] `keybard-cli upload keymap <filepath.json>`: Load a full keymap from a file and apply to the keyboard.
+*   [x] `keybard-cli download keymap <filepath.json>`: Save the current keyboard keymap to a file.
+*   [x] `keybard-cli list macros`: List all macros.
+*   [x] `keybard-cli get macro <id_or_name>`: View a specific macro.
+*   [x] `keybard-cli add macro "<sequence_definition>"`: Add a new macro (e.g., "CTRL+C"). (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli edit macro <id_or_name> "<new_sequence_definition>"`: Edit an existing macro. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli delete macro <id_or_name>`: Remove a macro.
+*   [x] `keybard-cli list tapdances`: List all tapdances.
+*   [x] `keybard-cli get tapdance <id_or_name>`: View a specific tapdance.
+*   [x] `keybard-cli add tapdance "<sequence_definition>"`: Add a new tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli edit tapdance <id_or_name> "<new_sequence_definition>"`: Edit an existing tapdance. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli delete tapdance <id_or_name>`: Remove a tapdance.
+*   [x] `keybard-cli list combos`: List all combos.
+*   [x] `keybard-cli get combo <id_or_name>`: View a specific combo.
+*   [x] `keybard-cli add combo "<key1>+<key2> <action_key>"`: Add a new combo. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli edit combo <id_or_name> "<new_key1>+<new_key2> <new_action_key>"`: Edit an existing combo. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
+*   [x] `keybard-cli delete combo <id_or_name>`: Remove a combo.
+*   [x] `keybard-cli list key-overrides`: List all key overrides.
+*   [x] `keybard-cli get key-override <id_or_name>`: View a specific key override.
 *   [ ] `keybard-cli add key-override "<trigger_key> <override_key>"`: Add a new key override. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [ ] `keybard-cli edit key-override <id_or_name> "<new_trigger_key> <new_override_key>"`: Edit an existing key override. (Ideally, these commands should also include additional arguments to allow editing/adding items without needing to provide a full JSON representation of the data.)
 *   [ ] `keybard-cli delete key-override <id_or_name>`: Remove a key override.
