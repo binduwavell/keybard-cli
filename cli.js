@@ -1,5 +1,7 @@
+#!/usr/bin/env node
+
 const { Blob } = require('buffer');
-const debug = require('debug')('keybard-cli:cli');
+const debug = require('debug')('keybard:cli');
 const fs = require('fs');
 const path = require('path');
 const { program } = require('commander');

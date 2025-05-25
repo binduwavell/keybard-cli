@@ -580,11 +580,14 @@ To enable debug output, set the `DEBUG` environment variable before running any 
 
 **Enable all debug output:**
 ```bash
-DEBUG=keybard:* ./keybard-cli.js keyboard info
+DEBUG=keybard* ./keybard-cli.js keyboard info
 ```
 
 **Enable specific debug categories:**
 ```bash
+# CLI operations only
+DEBUG=keybard:cli ./keybard-cli.js keyboard info
+
 # USB operations only
 DEBUG=keybard:usb ./keybard-cli.js keyboard info
 
@@ -592,11 +595,12 @@ DEBUG=keybard:usb ./keybard-cli.js keyboard info
 DEBUG=keybard:macro ./keybard-cli.js macro list
 
 # Multiple categories
-DEBUG=keybard:usb,keybard:vial ./keybard-cli.js keyboard info
+DEBUG=keybard:cli,keybard:usb ./keybard-cli.js keyboard info
 ```
 
 ### Available Debug Categories
 
+- `keybard:cli` - Main CLI operations, command parsing, and file loading
 - `keybard:usb` - USB device connection and communication
 - `keybard:utils` - Common utility functions and device operations
 - `keybard:macro` - Macro operations (add, edit, delete)
@@ -609,14 +613,17 @@ DEBUG=keybard:usb,keybard:vial ./keybard-cli.js keyboard info
 ### Debug Output Examples
 
 ```bash
+# See CLI operations and file loading
+DEBUG=keybard:cli ./keybard-cli.js keyboard info
+
 # See USB device detection and connection details
 DEBUG=keybard:usb ./keybard-cli.js keyboard info
 
 # See detailed macro processing
 DEBUG=keybard:macro ./keybard-cli.js macro add "KC_H,KC_I"
 
-# See all internal operations
-DEBUG=keybard:* ./keybard-cli.js combo add "KC_A+KC_S KC_D"
+# See all internal operations (CLI + lib operations)
+DEBUG=keybard* ./keybard-cli.js combo add "KC_A+KC_S KC_D"
 ```
 
 The debug output will show detailed information about:
