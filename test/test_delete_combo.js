@@ -25,8 +25,8 @@ describe('delete_combo.js tests', () => {
     let mockProcessExitCode;
 
     // Spies
-    let spyVialComboSetCalls;
-    let spyVialKbSaveCombosCalled;
+    let spyVialComboPushCalled;
+    let mockKbinfoCombos;
 
     function setupTestEnvironment(
         mockKbinfoInitial = {},
@@ -41,18 +41,34 @@ describe('delete_combo.js tests', () => {
             device: true
         };
 
+        // Convert object format to array format for combos if needed
+        const defaultCombos = mockKbinfoInitial.combos || [];
+        const arrayFormatCombos = defaultCombos.map(combo => {
+            if (Array.isArray(combo)) {
+                return combo; // Already in array format
+            }
+            // Convert object format to array format
+            const triggerKeys = [...(combo.trigger_keys || [])];
+            while (triggerKeys.length < 4) {
+                triggerKeys.push("KC_NO");
+            }
+            return [...triggerKeys, combo.action_key || "KC_NO"];
+        });
+
         const defaultKbinfo = {
             combo_count: MAX_COMBO_SLOTS_IN_TEST,
-            combos: [],
+            combos: arrayFormatCombos,
             ...mockKbinfoInitial
         };
 
+        mockKbinfoCombos = [];
         const defaultVialMethods = {
             init: async (kbinfoRef) => { /* Minimal mock */ },
             load: async (kbinfoRef) => {
+                mockKbinfoCombos = JSON.parse(JSON.stringify(defaultKbinfo.combos));
                 Object.assign(kbinfoRef, {
                     combo_count: defaultKbinfo.combo_count,
-                    combos: JSON.parse(JSON.stringify(defaultKbinfo.combos)),
+                    combos: mockKbinfoCombos,
                     macros: kbinfoRef.macros || [],
                     macro_count: kbinfoRef.macro_count || 0,
                 });
@@ -60,22 +76,15 @@ describe('delete_combo.js tests', () => {
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
 
-        spyVialComboSetCalls = [];
+        spyVialComboPushCalled = false;
         mockVialCombo = {
-            set: async (id, data) => {
-                spyVialComboSetCalls.push({ id, data: JSON.parse(JSON.stringify(data)) });
+            push: async (kbinfo, comboId) => {
+                spyVialComboPushCalled = true;
             },
             ...vialComboMethodOverrides
         };
 
-        spyVialKbSaveCombosCalled = false;
         mockVialKb = {
-            saveCombos: async () => {
-                spyVialKbSaveCombosCalled = true;
-            },
-            save: async () => {
-                 spyVialKbSaveCombosCalled = true;
-            },
             ...vialKbMethodOverrides
         };
 
@@ -115,33 +124,60 @@ describe('delete_combo.js tests', () => {
     // --- Happy Path Tests ---
 
     it('should delete a combo successfully', async () => {
+        // Set up an initial combo to delete
+        const initialCombos = [
+            ["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"], // Combo at slot 0
+        ];
+        setupTestEnvironment({ combos: initialCombos });
+
         await sandbox.global.runDeleteCombo("0", {});
 
-        assert.strictEqual(spyVialComboSetCalls.length, 1);
-        const setCall = spyVialComboSetCalls[0];
-        assert.strictEqual(setCall.id, 0);
-        assert.strictEqual(setCall.data.enabled, false);
-        assert.strictEqual(setCall.data.term, 0);
-        assert.deepStrictEqual(setCall.data.trigger_keys, []);
-        assert.strictEqual(setCall.data.action_key, KC_NO_VALUE);
-        assert.strictEqual(spyVialKbSaveCombosCalled, true);
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0 deleted successfully (set to disabled state).")));
+        assert.strictEqual(spyVialComboPushCalled, true);
+
+        // Check that the combo was cleared (set to all KC_NO)
+        assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
+
+        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0 deleted successfully.")));
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
     it('should delete combo with higher ID', async () => {
+        // Set up combos with one at slot 5
+        const initialCombos = [];
+        for (let i = 0; i < 6; i++) {
+            if (i === 5) {
+                initialCombos.push(["KC_X", "KC_Y", "KC_NO", "KC_NO", "KC_Z"]);
+            } else {
+                initialCombos.push(["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
+            }
+        }
+        setupTestEnvironment({ combos: initialCombos });
+
         await sandbox.global.runDeleteCombo("5", {});
 
-        assert.strictEqual(spyVialComboSetCalls[0].id, 5);
+        assert.strictEqual(spyVialComboPushCalled, true);
+        assert.deepStrictEqual(mockKbinfoCombos[5], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
         assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 5 deleted successfully")));
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
     it('should delete combo at maximum valid ID', async () => {
         const maxId = MAX_COMBO_SLOTS_IN_TEST - 1;
+        // Set up combos with one at the maximum slot
+        const initialCombos = [];
+        for (let i = 0; i < MAX_COMBO_SLOTS_IN_TEST; i++) {
+            if (i === maxId) {
+                initialCombos.push(["KC_X", "KC_Y", "KC_NO", "KC_NO", "KC_Z"]);
+            } else {
+                initialCombos.push(["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
+            }
+        }
+        setupTestEnvironment({ combos: initialCombos });
+
         await sandbox.global.runDeleteCombo(maxId.toString(), {});
 
-        assert.strictEqual(spyVialComboSetCalls[0].id, maxId);
+        assert.strictEqual(spyVialComboPushCalled, true);
+        assert.deepStrictEqual(mockKbinfoCombos[maxId], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo ${maxId} deleted successfully`)));
         assert.strictEqual(mockProcessExitCode, 0);
     });
@@ -227,55 +263,61 @@ describe('delete_combo.js tests', () => {
         }
     });
 
-    it('should error if Vial.combo.set function is not available', async () => {
-        setupTestEnvironment({}, {}, { set: undefined });
+    it('should error if Vial.combo.push function is not available', async () => {
+        setupTestEnvironment({}, {}, { push: undefined });
 
         await sandbox.global.runDeleteCombo("0", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.combo.set function is not available. Cannot delete combo.")));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.combo.push function is not available. Cannot delete combo.")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
-    it('should warn if Vial.kb.saveCombos function not found', async () => {
-        setupTestEnvironment({}, {}, {}, { saveCombos: undefined });
+    it('should handle error during Vial.combo.push', async () => {
+        // Set up an initial combo to delete
+        const initialCombos = [
+            ["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"], // Combo at slot 0
+        ];
+        setupTestEnvironment({ combos: initialCombos }, {}, { push: async () => { throw new Error("Simulated Push Error"); } });
 
         await sandbox.global.runDeleteCombo("0", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: Vial.kb.saveCombos function not found. Changes might be volatile.")));
-        assert.strictEqual(mockProcessExitCode, 0); // Should still succeed
-    });
-
-    it('should handle error during Vial.combo.set', async () => {
-        setupTestEnvironment({}, {}, { set: async () => { throw new Error("Simulated Set Error"); } });
-
-        await sandbox.global.runDeleteCombo("0", {});
-
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Set Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
-    });
-
-    it('should handle error during Vial.kb.saveCombos', async () => {
-        setupTestEnvironment({}, {}, {}, { saveCombos: async () => { throw new Error("Simulated Save Error"); } });
-
-        await sandbox.global.runDeleteCombo("0", {});
-
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
+        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should handle floating point combo ID', async () => {
+        // Set up combos with one at slot 1
+        const initialCombos = [
+            ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], // Slot 0
+            ["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"], // Slot 1
+        ];
+        setupTestEnvironment({ combos: initialCombos });
+
         await sandbox.global.runDeleteCombo("1.5", {});
 
         // parseInt("1.5", 10) returns 1, so this should succeed with ID 1
-        assert.strictEqual(spyVialComboSetCalls[0].id, 1);
+        assert.strictEqual(spyVialComboPushCalled, true);
+        assert.deepStrictEqual(mockKbinfoCombos[1], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
     it('should handle combo ID with leading zeros', async () => {
+        // Set up combos with one at slot 7
+        const initialCombos = [];
+        for (let i = 0; i < 8; i++) {
+            if (i === 7) {
+                initialCombos.push(["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"]);
+            } else {
+                initialCombos.push(["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
+            }
+        }
+        setupTestEnvironment({ combos: initialCombos });
+
         await sandbox.global.runDeleteCombo("007", {});
 
         // parseInt("007", 10) returns 7
-        assert.strictEqual(spyVialComboSetCalls[0].id, 7);
+        assert.strictEqual(spyVialComboPushCalled, true);
+        assert.deepStrictEqual(mockKbinfoCombos[7], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
         assert.strictEqual(mockProcessExitCode, 0);
     });
 });

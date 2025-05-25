@@ -104,8 +104,8 @@ describe('list_key_overrides.js tests', () => {
 
     it('should list key overrides in text format to console', async () => {
         const keyOverrides = [
-            { id: 0, trigger_key: 0x0004, override_key: 0x0005 }, // KC_A -> KC_B
-            { id: 1, trigger_key: 0x0006, override_key: 0x0007 }, // KC_C -> KC_D
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
+            { koid: 1, trigger: "KC_C", replacement: "KC_D", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
         ];
         setupTestEnvironment({ key_overrides: keyOverrides });
 
@@ -119,7 +119,7 @@ describe('list_key_overrides.js tests', () => {
 
     it('should list key overrides in JSON format to console', async () => {
         const keyOverrides = [
-            { id: 0, trigger_key: 0x0004, override_key: 0x0005 }, // KC_A -> KC_B
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
         ];
         setupTestEnvironment({ key_overrides: keyOverrides });
 
@@ -131,16 +131,16 @@ describe('list_key_overrides.js tests', () => {
         assert.isArray(parsedOutput);
         assert.strictEqual(parsedOutput.length, 1);
         assert.strictEqual(parsedOutput[0].id, 0);
-        assert.strictEqual(parsedOutput[0].trigger_key, 0x0004);
-        assert.strictEqual(parsedOutput[0].override_key, 0x0005);
-        assert.strictEqual(parsedOutput[0].trigger_key_str, 'KC_A');
-        assert.strictEqual(parsedOutput[0].override_key_str, 'KC_B');
+        assert.strictEqual(parsedOutput[0].trigger_key, "KC_A");
+        assert.strictEqual(parsedOutput[0].override_key, "KC_B");
+        assert.strictEqual(parsedOutput[0].trigger_key_str, "KC_A");
+        assert.strictEqual(parsedOutput[0].override_key_str, "KC_B");
     });
 
     it('should handle key overrides without explicit IDs (use index)', async () => {
         const keyOverrides = [
-            { trigger_key: 0x0004, override_key: 0x0005 }, // No id field
-            { trigger_key: 0x0006, override_key: 0x0007 }, // No id field
+            { trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }, // No koid field
+            { trigger: "KC_C", replacement: "KC_D", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }, // No koid field
         ];
         setupTestEnvironment({ key_overrides: keyOverrides });
 
@@ -153,9 +153,9 @@ describe('list_key_overrides.js tests', () => {
 
     it('should sort key overrides by ID for consistent output', async () => {
         const keyOverrides = [
-            { id: 2, trigger_key: 0x0006, override_key: 0x0007 }, // KC_C -> KC_D
-            { id: 0, trigger_key: 0x0004, override_key: 0x0005 }, // KC_A -> KC_B
-            { id: 1, trigger_key: 0x001D, override_key: 0x0039 }, // KC_Z -> KC_CAPS
+            { koid: 2, trigger: "KC_C", replacement: "KC_D", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
+            { koid: 1, trigger: "KC_Z", replacement: "KC_CAPS", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
         ];
         setupTestEnvironment({ key_overrides: keyOverrides });
 
@@ -173,7 +173,7 @@ describe('list_key_overrides.js tests', () => {
 
     it('should write key overrides to file in text format', async () => {
         const keyOverrides = [
-            { id: 0, trigger_key: 0x0004, override_key: 0x0005 }, // KC_A -> KC_B
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
         ];
         let writtenContent = '';
         setupTestEnvironment(
@@ -192,7 +192,7 @@ describe('list_key_overrides.js tests', () => {
 
     it('should write key overrides to file in JSON format', async () => {
         const keyOverrides = [
-            { id: 0, trigger_key: 0x0004, override_key: 0x0005 }, // KC_A -> KC_B
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
         ];
         let writtenContent = '';
         setupTestEnvironment(
@@ -233,7 +233,7 @@ describe('list_key_overrides.js tests', () => {
 
     it('should handle case-insensitive format option', async () => {
         const keyOverrides = [
-            { id: 0, trigger_key: 0x0004, override_key: 0x0005 }, // KC_A -> KC_B
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
         ];
         setupTestEnvironment({ key_overrides: keyOverrides });
 
@@ -248,7 +248,7 @@ describe('list_key_overrides.js tests', () => {
 
     it('should default to text format for unknown format', async () => {
         const keyOverrides = [
-            { id: 0, trigger_key: 0x0004, override_key: 0x0005 }, // KC_A -> KC_B
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
         ];
         setupTestEnvironment({ key_overrides: keyOverrides });
 
@@ -364,7 +364,7 @@ describe('list_key_overrides.js tests', () => {
 
     it('should error and fallback to console if file write fails', async () => {
         const keyOverrides = [
-            { id: 0, trigger_key: 0x0004, override_key: 0x0005 }, // KC_A -> KC_B
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
         ];
         setupTestEnvironment(
             { key_overrides: keyOverrides },

@@ -27,6 +27,7 @@ const sandbox = {
   Response: Response,
   require: require,
   TextDecoder: TextDecoder,
+  TextEncoder: TextEncoder,
   xzwasm: {XzReadableStream: XzReadableStream}
 }
 vm.createContext(sandbox);

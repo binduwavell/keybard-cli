@@ -1,7 +1,7 @@
 const { assert } = require('chai'); // Switched to Chai's assert
 const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 
 const MAX_MACRO_SLOTS_IN_TEST = 16;
 
@@ -14,12 +14,12 @@ function loadScriptInContext(scriptPath, context) {
 describe('edit_macro.js library tests', () => {
     let sandbox;
     let mockUsb;
-    let mockVial; 
-    let mockVialMacro; 
-    let mockVialKb;    
-    let mockKey;    
+    let mockVial;
+    let mockVialMacro;
+    let mockVialKb;
+    let mockKey;
     let consoleLogOutput;
-    let consoleErrorOutput; 
+    let consoleErrorOutput;
     let mockProcessExitCode;
 
     // Spies
@@ -34,21 +34,21 @@ describe('edit_macro.js library tests', () => {
             keyParseResults[keyDefStr] = undefined;
             return undefined;
         }
-        if (keyDefStr.toUpperCase() === "UNKNOWN_MACRO_ACTION_TYPE(KC_A)") { 
+        if (keyDefStr.toUpperCase() === "UNKNOWN_MACRO_ACTION_TYPE(KC_A)") {
             throw new Error(`Invalid key string or unknown action in macro sequence: "${keyDefStr}"`);
         }
-        
+
         let sum = 0;
         for (let i = 0; i < keyDefStr.length; i++) { sum += keyDefStr.charCodeAt(i); }
         if (keyDefStr.includes("LCTL")) sum += 0x100;
-        keyParseResults[keyDefStr] = sum; 
+        keyParseResults[keyDefStr] = sum;
         return sum;
     }
 
     function setupTestEnvironment(
-        mockKbinfoInitial = {}, 
-        vialMethodOverrides = {}, 
-        vialMacroOverrides = {}, 
+        mockKbinfoInitial = {},
+        vialMethodOverrides = {},
+        vialMacroOverrides = {},
         vialKbMethodOverrides = {}
     ) {
         mockUsb = {
@@ -57,9 +57,9 @@ describe('edit_macro.js library tests', () => {
             close: () => { mockUsb.device = null; },
             device: true
         };
-        
-        keyParseResults = {}; 
-        spyKeyParseCalls = []; 
+
+        keyParseResults = {};
+        spyKeyParseCalls = [];
 
         const defaultInitialMacrosRaw = [
             { mid: 0, actions: [['tap', "KC_A_DEFAULT"]] },
@@ -71,10 +71,10 @@ describe('edit_macro.js library tests', () => {
         }));
 
         const defaultKbinfo = {
-            macro_count: MAX_MACRO_SLOTS_IN_TEST, 
-            macros: JSON.parse(JSON.stringify(defaultInitialMacrosProcessed)),                   
-            macros_size: 1024, 
-            ...mockKbinfoInitial 
+            macro_count: MAX_MACRO_SLOTS_IN_TEST,
+            macros: JSON.parse(JSON.stringify(defaultInitialMacrosProcessed)),
+            macros_size: 1024,
+            ...mockKbinfoInitial
         };
         if (mockKbinfoInitial.macros) {
             defaultKbinfo.macros = mockKbinfoInitial.macros.map(m => ({
@@ -85,46 +85,46 @@ describe('edit_macro.js library tests', () => {
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     macro_count: defaultKbinfo.macro_count,
-                    macros: JSON.parse(JSON.stringify(defaultKbinfo.macros)), 
+                    macros: JSON.parse(JSON.stringify(defaultKbinfo.macros)),
                     macros_size: defaultKbinfo.macros_size
                 });
             }
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        
+
         spyVialMacroPushKbinfo = null;
         mockVialMacro = {
             push: async (kbinfo) => {
-                spyVialMacroPushKbinfo = JSON.parse(JSON.stringify(kbinfo)); 
+                spyVialMacroPushKbinfo = JSON.parse(JSON.stringify(kbinfo));
             },
             ...vialMacroOverrides
         };
 
         spyVialKbSaveMacrosCalled = false;
-        mockVialKb = { 
+        mockVialKb = {
             saveMacros: async () => {
                 spyVialKbSaveMacrosCalled = true;
             },
             ...vialKbMethodOverrides
         };
-     
+
         mockKey = { parse: mockKeyParseImplementation };
-        
-        consoleLogOutput = []; 
+
+        consoleLogOutput = [];
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
         sandbox = vm.createContext({
-            USB: mockUsb, Vial: { ...mockVial, macro: mockVialMacro, kb: mockVialKb }, 
+            USB: mockUsb, Vial: { ...mockVial, macro: mockVialMacro, kb: mockVialKb },
             KEY: mockKey, fs: {}, runInitializers: () => {},
-            MAX_MACRO_SLOTS: MAX_MACRO_SLOTS_IN_TEST, 
+            MAX_MACRO_SLOTS: MAX_MACRO_SLOTS_IN_TEST,
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')), 
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
             process: {
@@ -140,44 +140,44 @@ describe('edit_macro.js library tests', () => {
     });
 
     it('should edit a macro successfully', async () => {
-        const parsed_KC_A_DEFAULT = mockKeyParseImplementation("KC_A_DEFAULT"); 
-        const parsed_HelloDefault_actions = [['text', "HelloDefault"]]; 
+        const parsed_KC_A_DEFAULT = mockKeyParseImplementation("KC_A_DEFAULT");
+        const parsed_HelloDefault_actions = [['text', "HelloDefault"]];
 
-        setupTestEnvironment({ 
-            macros: [ 
+        setupTestEnvironment({
+            macros: [
                 { mid: 0, actions: [['tap', "KC_A_DEFAULT"]] },
                 { mid: 1, actions: [['text', "HelloDefault"]] }
             ]
-        }); 
+        });
         const macroIdToEdit = "0";
         const newSequence = "KC_X,DELAY(50)";
-        
-        spyKeyParseCalls = []; 
+
+        spyKeyParseCalls = [];
         await sandbox.global.runEditMacro(macroIdToEdit, newSequence, {});
 
         assert.deepStrictEqual(spyKeyParseCalls, ["KC_X"], "KEY.parse calls mismatch for new sequence.");
         assert.ok(spyVialMacroPushKbinfo, "Vial.macro.push was not called.");
-        
+
         const editedMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 0);
         assert.ok(editedMacro, "Edited macro (mid 0) not found in pushed data.");
-        
-        const expectedNewActions = [ ['tap', keyParseResults["KC_X"]], ['delay', 50] ];
+
+        const expectedNewActions = [ ['tap', "KC_X"], ['delay', 50] ];
         assert.deepStrictEqual(editedMacro.actions, expectedNewActions, "Macro actions not updated correctly.");
 
         const otherMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 1);
         assert.ok(otherMacro, "Other macro (mid 1) missing from pushed data.");
         assert.deepStrictEqual(otherMacro.actions, parsed_HelloDefault_actions, "Other macro (mid 1) was altered.");
-        
+
         assert.isTrue(spyVialKbSaveMacrosCalled, "Vial.kb.saveMacros not called.");
         assert.isTrue(consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
     it('should clear macro actions if new sequence is empty and warn', async () => {
-        setupTestEnvironment(); 
+        setupTestEnvironment();
         const macroIdToEdit = "0";
-        const newSequence = ""; 
-        
+        const newSequence = "";
+
         spyKeyParseCalls = [];
         await sandbox.global.runEditMacro(macroIdToEdit, newSequence, {});
 
@@ -185,14 +185,14 @@ describe('edit_macro.js library tests', () => {
         const editedMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 0);
         assert.ok(editedMacro, "Edited macro (mid 0) not found.");
         assert.deepStrictEqual(editedMacro.actions, [], "Macro actions not cleared.");
-        
+
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: New macro sequence is empty. This will clear the macro.")));
         assert.isTrue(consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
     it('should error if macro ID to edit is not found', async () => {
-        await sandbox.global.runEditMacro("99", "KC_A", {}); 
+        await sandbox.global.runEditMacro("99", "KC_A", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Macro with ID 99 not found. Cannot edit.")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
@@ -230,9 +230,9 @@ describe('edit_macro.js library tests', () => {
     });
 
     it('should error if Vial.load fails to populate macro data', async () => {
-        setupTestEnvironment({}, { load: async (kbinfoRef) => { 
-            kbinfoRef.macros = undefined; 
-            kbinfoRef.macro_count = undefined; 
+        setupTestEnvironment({}, { load: async (kbinfoRef) => {
+            kbinfoRef.macros = undefined;
+            kbinfoRef.macro_count = undefined;
         }});
         await sandbox.global.runEditMacro("0", "KC_A", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Macro data not fully populated by Vial functions.")));
@@ -254,10 +254,10 @@ describe('edit_macro.js library tests', () => {
     });
 
     it('should warn if Vial.kb.saveMacros is missing', async () => {
-        setupTestEnvironment({}, {}, {}, { saveMacros: undefined }); 
-        await sandbox.global.runEditMacro("0", "KC_X", {}); 
+        setupTestEnvironment({}, {}, {}, { saveMacros: undefined });
+        await sandbox.global.runEditMacro("0", "KC_X", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found.")));
-        assert.strictEqual(mockProcessExitCode, 0); 
+        assert.strictEqual(mockProcessExitCode, 0);
     });
 });

@@ -1,7 +1,7 @@
 const { assert } = require('chai'); // Switched to Chai's assert
 const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 
 function loadScriptInContext(scriptPath, context) {
     const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
@@ -13,9 +13,9 @@ describe('list_combos.js library tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockVialKb; 
-    let mockKey;    
-    let mockFs; 
+    let mockVialKb;
+    let mockKey;
+    let mockFs;
     let consoleLogOutput;
     let consoleErrorOutput;
     let mockProcessExitCode;
@@ -35,10 +35,13 @@ describe('list_combos.js library tests', () => {
         return mockKeyDb[keyCode] || `0x${keyCode.toString(16).padStart(4,'0')}`;
     }
 
+    // Sample combos in the array format that Vial.combo.get actually returns
+    // Each combo is [trigger_key1, trigger_key2, trigger_key3, trigger_key4, action_key]
+    // All keys are already stringified by KEY.stringify() in the real Vial.combo.get
     const sampleCombos = [
-        { id: 0, index: 0, term: 50, trigger_keys: [0x0041, 0x0042], action_key: 0x0043 }, 
-        { id: 1, index: 1, term: 30, trigger_keys: [0x0044], action_key: 0x0045 },       
-        { id: 2, index: 2, term: 0,  trigger_keys: [0x0041, 0x0045], action_key: 0x0044 }
+        ["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"],     // Combo 0: KC_A + KC_B -> KC_C
+        ["KC_D", "KC_NO", "KC_NO", "KC_NO", "KC_E"],    // Combo 1: KC_D -> KC_E
+        ["KC_A", "KC_E", "KC_NO", "KC_NO", "KC_D"]      // Combo 2: KC_A + KC_E -> KC_D
     ];
     const sampleComboCount = sampleCombos.length;
 
@@ -51,14 +54,14 @@ describe('list_combos.js library tests', () => {
         };
 
         const defaultKbinfo = {
-            combo_count: sampleComboCount, 
-            combos: JSON.parse(JSON.stringify(sampleCombos)), 
-            ...mockKbinfoData 
+            combo_count: sampleComboCount,
+            combos: JSON.parse(JSON.stringify(sampleCombos)),
+            ...mockKbinfoData
         };
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     combo_count: defaultKbinfo.combo_count,
                     combos: JSON.parse(JSON.stringify(defaultKbinfo.combos)),
@@ -66,8 +69,8 @@ describe('list_combos.js library tests', () => {
             }
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        
-        mockVialKb = {}; 
+
+        mockVialKb = {};
 
         spyKeyStringifyCalls = [];
         mockKey = { stringify: mockKeyStringifyImplementation };
@@ -87,14 +90,14 @@ describe('list_combos.js library tests', () => {
 
         sandbox = vm.createContext({
             USB: mockUsb,
-            Vial: { ...mockVial, kb: mockVialKb }, 
+            Vial: { ...mockVial, kb: mockVialKb },
             KEY: mockKey,
-            fs: mockFs, 
+            fs: mockFs,
             runInitializers: () => {},
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')), 
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
             process: {
@@ -112,20 +115,28 @@ describe('list_combos.js library tests', () => {
     it('should list combos in text format to console', async () => {
         await sandbox.global.runListCombos({ format: 'text' });
         const output = consoleLogOutput.join('\\n');
-        assert.include(output, `Found ${sampleComboCount} combo(s)`, "Header missing.");
-        assert.include(output, "Combo 0: KC_A + KC_B -> KC_C (Term: 50ms)", "Combo 0 format incorrect.");
-        assert.include(output, "Combo 1: KC_D -> KC_E (Term: 30ms)", "Combo 1 format incorrect.");
-        assert.include(output, "Combo 2: KC_A + KC_E -> KC_D", "Combo 2 format incorrect (term 0 should be omitted).");
+        assert.include(output, `Found ${sampleComboCount} active combo(s)`, "Header missing.");
+        assert.include(output, "Combo 0: KC_A + KC_B -> KC_C", "Combo 0 format incorrect.");
+        assert.include(output, "Combo 1: KC_D -> KC_E", "Combo 1 format incorrect.");
+        assert.include(output, "Combo 2: KC_A + KC_E -> KC_D", "Combo 2 format incorrect.");
         assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
     });
 
     it('should list combos in JSON format to console', async () => {
         await sandbox.global.runListCombos({ format: 'json' });
-        const expectedJsonObjects = sampleCombos.map(combo => ({
-            ...combo,
-            trigger_keys_str: combo.trigger_keys.map(kc => mockKeyDb[kc] || `0x${kc.toString(16).padStart(4,'0')}`),
-            action_key_str: mockKeyDb[combo.action_key] || `0x${combo.action_key.toString(16).padStart(4,'0')}`
-        }));
+        const expectedJsonObjects = sampleCombos.map((combo, idx) => {
+            // Filter out "KC_NO" trigger keys
+            const triggerKeys = combo.slice(0, 4).filter(key => key !== "KC_NO");
+            const actionKey = combo[4];
+
+            return {
+                id: idx,
+                trigger_keys: triggerKeys,
+                action_key: actionKey,
+                trigger_keys_str: triggerKeys,
+                action_key_str: actionKey
+            };
+        });
         const expectedJson = JSON.stringify(expectedJsonObjects, null, 2);
         assert.strictEqual(consoleLogOutput.join('\\n'), expectedJson, "JSON output mismatch.");
         assert.strictEqual(mockProcessExitCode, 0);
@@ -135,8 +146,8 @@ describe('list_combos.js library tests', () => {
         const outputPath = "combos.txt";
         await sandbox.global.runListCombos({ format: 'text', outputFile: outputPath });
         assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
-        assert.include(spyWriteFileSyncData, `Found ${sampleComboCount} combo(s)`);
-        assert.include(spyWriteFileSyncData, "Combo 1: KC_D -> KC_E (Term: 30ms)");
+        assert.include(spyWriteFileSyncData, `Found ${sampleComboCount} active combo(s)`);
+        assert.include(spyWriteFileSyncData, "Combo 1: KC_D -> KC_E");
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo list written to ${outputPath}`)));
         assert.strictEqual(mockProcessExitCode, 0);
     });
@@ -145,11 +156,19 @@ describe('list_combos.js library tests', () => {
         const outputPath = "combos.json";
         await sandbox.global.runListCombos({ format: 'json', outputFile: outputPath });
         assert.strictEqual(spyWriteFileSyncPath, outputPath);
-        const expectedJsonObjects = sampleCombos.map(combo => ({
-            ...combo,
-            trigger_keys_str: combo.trigger_keys.map(kc => mockKeyDb[kc] || `0x${kc.toString(16).padStart(4,'0')}`),
-            action_key_str: mockKeyDb[combo.action_key] || `0x${combo.action_key.toString(16).padStart(4,'0')}`
-        }));
+        const expectedJsonObjects = sampleCombos.map((combo, idx) => {
+            // Filter out "KC_NO" trigger keys
+            const triggerKeys = combo.slice(0, 4).filter(key => key !== "KC_NO");
+            const actionKey = combo[4];
+
+            return {
+                id: idx,
+                trigger_keys: triggerKeys,
+                action_key: actionKey,
+                trigger_keys_str: triggerKeys,
+                action_key_str: actionKey
+            };
+        });
         const expectedJson = JSON.stringify(expectedJsonObjects, null, 2);
         assert.strictEqual(spyWriteFileSyncData, expectedJson);
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo list written to ${outputPath}`)));
@@ -185,10 +204,10 @@ describe('list_combos.js library tests', () => {
     });
 
     it('should error if Vial.load fails to populate combo data', async () => {
-        setupTestEnvironment({}, { 
-            load: async (kbinfoRef) => { 
-                kbinfoRef.combos = undefined; 
-                kbinfoRef.combo_count = undefined; 
+        setupTestEnvironment({}, {
+            load: async (kbinfoRef) => {
+                kbinfoRef.combos = undefined;
+                kbinfoRef.combo_count = undefined;
             }
         });
         await sandbox.global.runListCombos({});
@@ -200,12 +219,12 @@ describe('list_combos.js library tests', () => {
         const outputPath = "combos_error.txt";
         const expectedFileErrorMessage = "Disk quota exceeded";
         mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
-        
+
         await sandbox.global.runListCombos({ outputFile: outputPath });
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing combo list to file "${outputPath}": ${expectedFileErrorMessage}`)));
         assert.isTrue(consoleLogOutput.some(line => line.includes("Combo List (fallback due to file write error):")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0: KC_A + KC_B -> KC_C (Term: 50ms)")));
+        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0: KC_A + KC_B -> KC_C")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 });

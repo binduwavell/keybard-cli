@@ -138,9 +138,9 @@ describe('add_macro.js tests', () => {
         const addedMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 0);
         assert.ok(addedMacro, "Macro not found in pushed data at mid 0");
         assert.deepStrictEqual(addedMacro.actions, [
-            ['tap', mockKey.parse("KC_A")],
+            ['tap', "KC_A"],
             ['delay', 100],
-            ['tap', mockKey.parse("KC_B")]
+            ['tap', "KC_B"]
         ]);
         assert.strictEqual(spyVialKbSaveMacrosCalled, true, "saveMacros was not called");
         assert.isTrue(consoleLogOutput.some(line => line.includes("Macro successfully added with ID 0")));
@@ -154,7 +154,7 @@ describe('add_macro.js tests', () => {
         assert.deepStrictEqual(spyKeyParseCalls, ["KC_H"]);
         const addedMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 0);
         assert.deepStrictEqual(addedMacro.actions, [
-            ['tap', mockKey.parse("KC_H")],
+            ['tap', "KC_H"],
             ['text', '"ello World!"'] // The quotes are included in the captured text
         ]);
         assert.strictEqual(mockProcessExitCode, 0);
@@ -167,9 +167,9 @@ describe('add_macro.js tests', () => {
         assert.deepStrictEqual(spyKeyParseCalls, ["KC_LCTL", "KC_C", "KC_LCTL"]);
         const addedMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 0);
         assert.deepStrictEqual(addedMacro.actions, [
-            ['down', mockKey.parse("KC_LCTL")],
-            ['tap', mockKey.parse("KC_C")],
-            ['up', mockKey.parse("KC_LCTL")]
+            ['down', "KC_LCTL"],
+            ['tap', "KC_C"],
+            ['up', "KC_LCTL"]
         ]);
         assert.strictEqual(mockProcessExitCode, 0);
     });
@@ -198,7 +198,7 @@ describe('add_macro.js tests', () => {
 
         const addedMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 0);
         assert.ok(addedMacro);
-        assert.deepStrictEqual(addedMacro.actions, [['tap', mockKey.parse("KC_Z")]]);
+        assert.deepStrictEqual(addedMacro.actions, [['tap', "KC_Z"]]);
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
@@ -208,9 +208,9 @@ describe('add_macro.js tests', () => {
 
         const addedMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 0);
         assert.deepStrictEqual(addedMacro.actions, [
-            ['tap', mockKey.parse("KC_A")],
-            ['tap', mockKey.parse("KC_B")],
-            ['tap', mockKey.parse("KC_C")]
+            ['tap', "KC_A"],
+            ['tap', "KC_B"],
+            ['tap', "KC_C"]
         ]);
         assert.strictEqual(mockProcessExitCode, 0);
     });

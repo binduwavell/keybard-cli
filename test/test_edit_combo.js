@@ -27,8 +27,8 @@ describe('edit_combo.js tests', () => {
 
     // Spies
     let spyKeyParseCalls;
-    let spyVialComboSetCalls;
-    let spyVialKbSaveCombosCalled;
+    let spyVialComboPushCalled;
+    let mockKbinfoCombos;
 
     // Mock implementation for KEY.parse
     function mockKeyParseImplementation(keyDefStr) {
@@ -55,18 +55,34 @@ describe('edit_combo.js tests', () => {
             device: true
         };
 
+        // Convert object format to array format for combos if needed
+        const defaultCombos = mockKbinfoInitial.combos || [];
+        const arrayFormatCombos = defaultCombos.map(combo => {
+            if (Array.isArray(combo)) {
+                return combo; // Already in array format
+            }
+            // Convert object format to array format
+            const triggerKeys = [...(combo.trigger_keys || [])];
+            while (triggerKeys.length < 4) {
+                triggerKeys.push("KC_NO");
+            }
+            return [...triggerKeys, combo.action_key || "KC_NO"];
+        });
+
         const defaultKbinfo = {
             combo_count: MAX_COMBO_SLOTS_IN_TEST,
-            combos: [],
+            combos: arrayFormatCombos,
             ...mockKbinfoInitial
         };
 
+        mockKbinfoCombos = [];
         const defaultVialMethods = {
             init: async (kbinfoRef) => { /* Minimal mock */ },
             load: async (kbinfoRef) => {
+                mockKbinfoCombos = JSON.parse(JSON.stringify(defaultKbinfo.combos));
                 Object.assign(kbinfoRef, {
                     combo_count: defaultKbinfo.combo_count,
-                    combos: JSON.parse(JSON.stringify(defaultKbinfo.combos)),
+                    combos: mockKbinfoCombos,
                     macros: kbinfoRef.macros || [],
                     macro_count: kbinfoRef.macro_count || 0,
                 });
@@ -74,22 +90,15 @@ describe('edit_combo.js tests', () => {
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
 
-        spyVialComboSetCalls = [];
+        spyVialComboPushCalled = false;
         mockVialCombo = {
-            set: async (id, data) => {
-                spyVialComboSetCalls.push({ id, data: JSON.parse(JSON.stringify(data)) });
+            push: async (kbinfo, comboId) => {
+                spyVialComboPushCalled = true;
             },
             ...vialComboMethodOverrides
         };
 
-        spyVialKbSaveCombosCalled = false;
         mockVialKb = {
-            saveCombos: async () => {
-                spyVialKbSaveCombosCalled = true;
-            },
-            save: async () => {
-                 spyVialKbSaveCombosCalled = true;
-            },
             ...vialKbMethodOverrides
         };
 
@@ -132,8 +141,9 @@ describe('edit_combo.js tests', () => {
     // --- Happy Path Tests ---
 
     it('should edit an existing combo successfully', async () => {
+        // Set up an initial combo in array format: [trigger1, trigger2, trigger3, trigger4, action]
         const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
         setupTestEnvironment({ combos: existingCombos });
 
@@ -141,56 +151,17 @@ describe('edit_combo.js tests', () => {
         await sandbox.global.runEditCombo("0", newDefinition, {});
 
         assert.deepStrictEqual(spyKeyParseCalls, ["KC_A", "KC_S", "KC_D"]);
-        assert.strictEqual(spyVialComboSetCalls.length, 1);
-        const setCall = spyVialComboSetCalls[0];
-        assert.strictEqual(setCall.id, 0);
-        assert.strictEqual(setCall.data.enabled, true);
-        assert.strictEqual(setCall.data.term, 30); // Should preserve existing term
-        assert.deepStrictEqual(setCall.data.trigger_keys, [mockKey.parse("KC_A"), mockKey.parse("KC_S")]);
-        assert.strictEqual(setCall.data.action_key, mockKey.parse("KC_D"));
-        assert.strictEqual(spyVialKbSaveCombosCalled, true);
+        assert.strictEqual(spyVialComboPushCalled, true);
+
+        // Check that the combo was updated in the array format
+        assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_A", "KC_S", "KC_NO", "KC_NO", "KC_D"]);
+
         assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0 updated successfully.")));
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
-    it('should edit combo with new term', async () => {
-        const existingCombos = [
-            { id: 1, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
-        ];
-        setupTestEnvironment({ combos: existingCombos });
-
-        const newDefinition = "KC_B+KC_N KC_M";
-        const newTerm = 100;
-        await sandbox.global.runEditCombo("1", newDefinition, { term: newTerm });
-
-        assert.strictEqual(spyVialComboSetCalls[0].data.term, newTerm);
-        assert.strictEqual(mockProcessExitCode, 0);
-    });
-
-    it('should use default term for combo without existing term', async () => {
-        const existingCombos = [
-            { id: 2, enabled: true, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") }, // No term
-        ];
-        setupTestEnvironment({ combos: existingCombos });
-
-        await sandbox.global.runEditCombo("2", "KC_C+KC_D KC_E", {});
-
-        assert.strictEqual(spyVialComboSetCalls[0].data.term, DEFAULT_COMBO_TERM);
-        assert.strictEqual(mockProcessExitCode, 0);
-    });
-
-    it('should handle combo found by index when id is undefined', async () => {
-        const existingCombos = [
-            { enabled: true, term: 25, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") }, // No id field
-        ];
-        setupTestEnvironment({ combos: existingCombos });
-
-        await sandbox.global.runEditCombo("0", "KC_F+KC_G KC_H", {});
-
-        assert.strictEqual(spyVialComboSetCalls[0].id, 0);
-        assert.strictEqual(spyVialComboSetCalls[0].data.term, 25);
-        assert.strictEqual(mockProcessExitCode, 0);
-    });
+    // Note: Term functionality has been removed from the new implementation
+    // These tests are no longer relevant as combos don't use terms anymore
 
     // --- Sad Path Tests ---
 
@@ -208,25 +179,17 @@ describe('edit_combo.js tests', () => {
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
-    it('should warn when combo ID not found but within capacity', async () => {
-        // No existing combos, but ID 5 is within capacity (0-15)
-        await sandbox.global.runEditCombo("5", "KC_A+KC_S KC_D", {});
-
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Warning: Combo ID 5 not explicitly found, but is within capacity. Attempting to set.')));
-        assert.strictEqual(mockProcessExitCode, 0); // Should succeed with warning
-    });
-
     it('should error with out-of-range combo ID', async () => {
         const outOfRangeId = MAX_COMBO_SLOTS_IN_TEST;
         await sandbox.global.runEditCombo(outOfRangeId.toString(), "KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Combo with ID ${outOfRangeId} not found or out of range`)));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Combo ID ${outOfRangeId} is out of range`)));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should error with invalid combo definition (missing action key)', async () => {
         const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
         setupTestEnvironment({ combos: existingCombos });
 
@@ -238,7 +201,7 @@ describe('edit_combo.js tests', () => {
 
     it('should error with invalid combo definition (no trigger keys)', async () => {
         const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
         setupTestEnvironment({ combos: existingCombos });
 
@@ -253,7 +216,7 @@ describe('edit_combo.js tests', () => {
 
     it('should error with invalid trigger key', async () => {
         const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
         setupTestEnvironment({ combos: existingCombos });
 
@@ -265,7 +228,7 @@ describe('edit_combo.js tests', () => {
 
     it('should error with invalid action key', async () => {
         const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
         setupTestEnvironment({ combos: existingCombos });
 
@@ -275,29 +238,8 @@ describe('edit_combo.js tests', () => {
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
-    it('should error with invalid term value (non-numeric)', async () => {
-        const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
-        ];
-        setupTestEnvironment({ combos: existingCombos });
-
-        await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", { term: 'abc' });
-
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid term value "abc". Must be a non-negative integer.')));
-        assert.strictEqual(mockProcessExitCode, 1);
-    });
-
-    it('should error with invalid term value (negative)', async () => {
-        const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
-        ];
-        setupTestEnvironment({ combos: existingCombos });
-
-        await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", { term: -50 });
-
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid term value "-50". Must be a non-negative integer.')));
-        assert.strictEqual(mockProcessExitCode, 1);
-    });
+    // Note: Term functionality has been removed from the new implementation
+    // Term-related tests are no longer relevant
 
     it('should error if no compatible device is found', async () => {
         setupTestEnvironment();
@@ -356,57 +298,33 @@ describe('edit_combo.js tests', () => {
         }
     });
 
-    it('should error if Vial.combo.set function is not available', async () => {
+    it('should error if Vial.combo.push function is not available', async () => {
         const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
-        setupTestEnvironment({ combos: existingCombos }, {}, { set: undefined });
+        setupTestEnvironment({ combos: existingCombos }, {}, { push: undefined });
 
         await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.combo.set function is not available. Cannot edit combo.")));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.combo.push function is not available. Cannot edit combo.")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
-    it('should warn if Vial.kb.saveCombos function not found', async () => {
+    it('should handle error during Vial.combo.push', async () => {
         const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
-        setupTestEnvironment({ combos: existingCombos }, {}, {}, { saveCombos: undefined });
+        setupTestEnvironment({ combos: existingCombos }, {}, { push: async () => { throw new Error("Simulated Push Error"); } });
 
         await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: Vial.kb.saveCombos function not found. Changes might be volatile.")));
-        assert.strictEqual(mockProcessExitCode, 0); // Should still succeed
-    });
-
-    it('should handle error during Vial.combo.set', async () => {
-        const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
-        ];
-        setupTestEnvironment({ combos: existingCombos }, {}, { set: async () => { throw new Error("Simulated Set Error"); } });
-
-        await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", {});
-
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Set Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
-    });
-
-    it('should handle error during Vial.kb.saveCombos', async () => {
-        const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
-        ];
-        setupTestEnvironment({ combos: existingCombos }, {}, {}, { saveCombos: async () => { throw new Error("Simulated Save Error"); } });
-
-        await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", {});
-
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
+        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should handle too many trigger keys', async () => {
         const existingCombos = [
-            { id: 0, enabled: true, term: 30, trigger_keys: [mockKey.parse("KC_X")], action_key: mockKey.parse("KC_Y") },
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
         setupTestEnvironment({ combos: existingCombos });
 

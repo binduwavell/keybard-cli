@@ -19,7 +19,7 @@ describe('edit_key_override.js library tests', () => {
     let mockVialKeyOverride;
     let mockVialKb;
     let mockKey;
-    
+
     // Spies
     let spyKeyParseCalls;
     let spyVialKeyOverridePushKbinfo;
@@ -51,12 +51,12 @@ describe('edit_key_override.js library tests', () => {
             close: () => { mockUsb.device = null; },
             device: true
         };
-        
+
         mockKey = { parse: mockKeyParseImplementation };
 
         const defaultKbinfo = {
             key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST,
-            key_overrides: [], 
+            key_overrides: [],
             ...mockKbinfoInitial
         };
 
@@ -71,7 +71,7 @@ describe('edit_key_override.js library tests', () => {
                 });
                 if (mockVial && mockVial.kbinfo !== kbinfoRef) {
                      if (mockVial.kbinfo) Object.assign(mockVial.kbinfo, kbinfoRef);
-                     else mockVial.kbinfo = kbinfoRef; 
+                     else mockVial.kbinfo = kbinfoRef;
                 }
             }
         };
@@ -79,9 +79,11 @@ describe('edit_key_override.js library tests', () => {
         if (!mockVial.kbinfo) mockVial.kbinfo = { ...defaultKbinfo } ;
 
         spyVialKeyOverridePushKbinfo = null;
+        spyVialKeyOverridePushKoid = null;
         mockVialKeyOverride = {
-            push: async (kbinfo) => { 
+            push: async (kbinfo, koid) => {
                 spyVialKeyOverridePushKbinfo = JSON.parse(JSON.stringify(kbinfo));
+                spyVialKeyOverridePushKoid = koid;
             },
             ...vialKeyOverrideMethodOverrides
         };
@@ -104,7 +106,7 @@ describe('edit_key_override.js library tests', () => {
 
         sandbox = vm.createContext({
             USB: mockUsb,
-            Vial: { ...mockVial, keyoverride: mockVialKeyOverride, kb: mockVialKb, kbinfo: mockVial.kbinfo },
+            Vial: { ...mockVial, key_override: mockVialKeyOverride, kb: mockVialKb, kbinfo: mockVial.kbinfo },
             KEY: mockKey,
             fs: {},
             runInitializers: () => {},
@@ -114,7 +116,7 @@ describe('edit_key_override.js library tests', () => {
                 warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
-            require: require, 
+            require: require,
             process: {
                 get exitCode() { return mockProcessExitCode; },
                 set exitCode(val) { mockProcessExitCode = val; }
@@ -129,46 +131,47 @@ describe('edit_key_override.js library tests', () => {
 
     it('should edit an existing key override successfully', async () => {
         const initialOverridesData = [
-            { koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B") },
-            { koid: 1, trigger_key: mockKey.parse("KC_X"), override_key: mockKey.parse("KC_Y") }
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
+            { koid: 1, trigger: "KC_X", replacement: "KC_Y", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }
         ];
         setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
-        
+
         const idToEdit = 1;
         const newTriggerKey = "KC_C";
         const newOverrideKey = "KC_D";
-        
+
         await sandbox.global.runEditKeyOverride(idToEdit.toString(), newTriggerKey, newOverrideKey, {});
 
         assert.deepStrictEqual(spyKeyParseCalls, [newTriggerKey, newOverrideKey]);
-        assert.ok(spyVialKeyOverridePushKbinfo, "Vial.keyoverride.push was not called");
-        
+        assert.ok(spyVialKeyOverridePushKbinfo, "Vial.key_override.push was not called");
+        assert.strictEqual(spyVialKeyOverridePushKoid, idToEdit, "Vial.key_override.push was not called with correct koid");
+
         const editedOverride = spyVialKeyOverridePushKbinfo.key_overrides.find(ko => ko && ko.koid === idToEdit);
         assert.ok(editedOverride, `Key override with ID ${idToEdit} not found in pushed data.`);
-        assert.strictEqual(editedOverride.trigger_key, mockKey.parse(newTriggerKey));
-        assert.strictEqual(editedOverride.override_key, mockKey.parse(newOverrideKey));
+        assert.strictEqual(editedOverride.trigger, newTriggerKey);
+        assert.strictEqual(editedOverride.replacement, newOverrideKey);
 
         const unchangedOverride = spyVialKeyOverridePushKbinfo.key_overrides.find(ko => ko && ko.koid === 0);
         assert.ok(unchangedOverride, "Unchanged override (ID 0) missing.");
-        assert.strictEqual(unchangedOverride.trigger_key, mockKey.parse("KC_A")); 
-        assert.strictEqual(unchangedOverride.override_key, mockKey.parse("KC_B")); 
-        
+        assert.strictEqual(unchangedOverride.trigger, "KC_A");
+        assert.strictEqual(unchangedOverride.replacement, "KC_B");
+
         assert.isTrue(spyVialKbSaveKeyOverridesCalled, "saveKeyOverrides was not called");
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Key override ID ${idToEdit} successfully updated`)));
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
     it('should error if key override ID to edit is not found', async () => {
-        const initialOverridesData = [ { koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B") } ];
+        const initialOverridesData = [ { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 } ];
         setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
-        const idToEdit = 1; 
+        const idToEdit = 1;
         await sandbox.global.runEditKeyOverride(idToEdit.toString(), "KC_C", "KC_D", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Key override with ID ${idToEdit} not found or not active.`)));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should error if key override ID is out of bounds', async () => {
-        setupTestEnvironment({ key_overrides: [], key_override_count: 0 }); 
+        setupTestEnvironment({ key_overrides: [], key_override_count: 0 });
         const idToEdit = 0;
         await sandbox.global.runEditKeyOverride(idToEdit.toString(), "KC_C", "KC_D", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Key override ID ${idToEdit} is out of bounds. Maximum ID is -1.`)));
@@ -207,14 +210,14 @@ describe('edit_key_override.js library tests', () => {
     });
 
     it('should error for invalid new trigger key string', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_ANY"), override_key: mockKey.parse("KC_ANY2")}]});
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_ANY", replacement: "KC_ANY2", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]});
         await sandbox.global.runEditKeyOverride("0", "KC_INVALID", "KC_D", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing new key strings: Invalid new trigger key string: "KC_INVALID"')));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should error for invalid new override key string', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_ANY"), override_key: mockKey.parse("KC_ANY2")}]});
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_ANY", replacement: "KC_ANY2", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]});
         await sandbox.global.runEditKeyOverride("0", "KC_C", "KC_INVALID", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing new key strings: Invalid new override key string: "KC_INVALID"')));
         assert.strictEqual(mockProcessExitCode, 1);
@@ -243,8 +246,8 @@ describe('edit_key_override.js library tests', () => {
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
-    it('should handle error during Vial.keyoverride.push', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, 
+    it('should handle error during Vial.key_override.push', async () => {
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]}, {},
             { push: async () => { throw new Error("Simulated Push Error"); } });
         await sandbox.global.runEditKeyOverride("0", "KC_A", "KC_B", {});
         assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
@@ -252,7 +255,7 @@ describe('edit_key_override.js library tests', () => {
     });
 
     it('should handle error during Vial.kb.saveKeyOverrides', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, 
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]}, {}, {},
             { saveKeyOverrides: async () => { throw new Error("Simulated Save Error"); } });
         await sandbox.global.runEditKeyOverride("0", "KC_A", "KC_B", {});
         assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
@@ -260,7 +263,7 @@ describe('edit_key_override.js library tests', () => {
     });
 
     it('should use Vial.kb.save if saveKeyOverrides is missing and log debug', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, 
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]}, {}, {},
             { saveKeyOverrides: undefined, save: async () => { spyVialKbSaveKeyOverridesCalled = true; } });
         await sandbox.global.runEditKeyOverride("0", "KC_A", "KC_B", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Key override ID 0 successfully updated")));
@@ -270,7 +273,7 @@ describe('edit_key_override.js library tests', () => {
     });
 
     it('should warn if no save function (saveKeyOverrides or save) is found', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, 
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]}, {}, {},
             { saveKeyOverrides: undefined, save: undefined });
         await sandbox.global.runEditKeyOverride("0", "KC_A", "KC_B", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Key override ID 0 successfully updated")));

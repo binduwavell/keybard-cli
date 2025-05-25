@@ -1,7 +1,7 @@
 const { assert } = require('chai'); // Switched to Chai's assert
 const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 
 function loadScriptInContext(scriptPath, context) {
     const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
@@ -13,9 +13,9 @@ describe('get_combo.js library tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockVialKb; 
-    let mockKey;    
-    let mockFs; 
+    let mockVialKb;
+    let mockKey;
+    let mockFs;
     let consoleLogOutput;
     let consoleErrorOutput;
     let mockProcessExitCode;
@@ -35,10 +35,13 @@ describe('get_combo.js library tests', () => {
         return mockKeyDb[keyCode] || `0x${keyCode.toString(16).padStart(4,'0')}`;
     }
 
+    // Sample combos in the array format that Vial.combo.get actually returns
+    // Each combo is [trigger_key1, trigger_key2, trigger_key3, trigger_key4, action_key]
+    // All keys are already stringified by KEY.stringify() in the real Vial.combo.get
     const sampleCombos = [
-        { id: 0, term: 50, trigger_keys: [0x0041, 0x0042], action_key: 0x0043 }, 
-        { id: 1, term: 30, trigger_keys: [0x0044], action_key: 0x0045 },       
-        { id: 2, term: 0,  trigger_keys: [0x0041, 0x0045], action_key: 0x0044 }
+        ["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"],     // Combo 0: KC_A + KC_B -> KC_C
+        ["KC_D", "KC_NO", "KC_NO", "KC_NO", "KC_E"],    // Combo 1: KC_D -> KC_E
+        ["KC_A", "KC_E", "KC_NO", "KC_NO", "KC_D"]      // Combo 2: KC_A + KC_E -> KC_D
     ];
     const sampleComboCount = sampleCombos.length;
 
@@ -51,14 +54,14 @@ describe('get_combo.js library tests', () => {
         };
 
         const defaultKbinfo = {
-            combo_count: sampleComboCount, 
-            combos: JSON.parse(JSON.stringify(sampleCombos)), 
-            ...mockKbinfoData 
+            combo_count: sampleComboCount,
+            combos: JSON.parse(JSON.stringify(sampleCombos)),
+            ...mockKbinfoData
         };
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     combo_count: defaultKbinfo.combo_count,
                     combos: JSON.parse(JSON.stringify(defaultKbinfo.combos)),
@@ -66,8 +69,8 @@ describe('get_combo.js library tests', () => {
             }
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        
-        mockVialKb = {}; 
+
+        mockVialKb = {};
 
         spyKeyStringifyCalls = [];
         mockKey = { stringify: mockKeyStringifyImplementation };
@@ -87,14 +90,14 @@ describe('get_combo.js library tests', () => {
 
         sandbox = vm.createContext({
             USB: mockUsb,
-            Vial: { ...mockVial, kb: mockVialKb }, 
+            Vial: { ...mockVial, kb: mockVialKb },
             KEY: mockKey,
-            fs: mockFs, 
+            fs: mockFs,
             runInitializers: () => {},
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')), 
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
             process: {
@@ -110,20 +113,22 @@ describe('get_combo.js library tests', () => {
     });
 
     it('should get combo in text format to console when it exists', async () => {
-        await sandbox.global.runGetCombo("0", { format: 'text' }); 
+        await sandbox.global.runGetCombo("0", { format: 'text' });
         const output = consoleLogOutput.join('\\n');
-        assert.include(output, "Combo 0: KC_A + KC_B -> KC_C (Term: 50ms)", "Output mismatch.");
+        assert.include(output, "Combo 0: KC_A + KC_B -> KC_C", "Output mismatch.");
         assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
     });
 
     it('should get combo in JSON format to console when it exists', async () => {
-        const targetCombo = sampleCombos[1];
+        const targetCombo = sampleCombos[1]; // ["KC_D", "KC_NO", "KC_NO", "KC_NO", "KC_E"]
         const expectedComboJson = {
-            ...targetCombo,
-            trigger_keys_str: targetCombo.trigger_keys.map(kc => mockKeyDb[kc] || `0x${kc.toString(16).padStart(4,'0')}`),
-            action_key_str: mockKeyDb[targetCombo.action_key] || `0x${targetCombo.action_key.toString(16).padStart(4,'0')}`
+            id: 1,
+            trigger_keys: ["KC_D"],
+            action_key: "KC_E",
+            trigger_keys_str: ["KC_D"],
+            action_key_str: "KC_E"
         };
-        await sandbox.global.runGetCombo("1", { format: 'json' }); 
+        await sandbox.global.runGetCombo("1", { format: 'json' });
         const expectedJsonString = JSON.stringify(expectedComboJson, null, 2);
         assert.strictEqual(consoleLogOutput.join('\\n'), expectedJsonString, "JSON output mismatch.");
         assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
@@ -134,7 +139,7 @@ describe('get_combo.js library tests', () => {
         const comboIdToGet = "0";
         await sandbox.global.runGetCombo(comboIdToGet, { format: 'text', outputFile: outputPath });
         assert.strictEqual(spyWriteFileSyncPath, outputPath);
-        assert.include(spyWriteFileSyncData, "Combo 0: KC_A + KC_B -> KC_C (Term: 50ms)");
+        assert.include(spyWriteFileSyncData, "Combo 0: KC_A + KC_B -> KC_C");
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo ${comboIdToGet} data written to ${outputPath}`)));
         assert.strictEqual(mockProcessExitCode, 0);
     });
@@ -142,11 +147,12 @@ describe('get_combo.js library tests', () => {
     it('should get combo in JSON format to file when it exists', async () => {
         const outputPath = "combo1.json";
         const comboIdToGet = "1";
-        const targetCombo = sampleCombos[parseInt(comboIdToGet, 10)];
         const expectedComboJson = {
-            ...targetCombo,
-            trigger_keys_str: targetCombo.trigger_keys.map(kc => mockKeyDb[kc] || `0x${kc.toString(16).padStart(4,'0')}`),
-            action_key_str: mockKeyDb[targetCombo.action_key] || `0x${targetCombo.action_key.toString(16).padStart(4,'0')}`
+            id: 1,
+            trigger_keys: ["KC_D"],
+            action_key: "KC_E",
+            trigger_keys_str: ["KC_D"],
+            action_key_str: "KC_E"
         };
         await sandbox.global.runGetCombo(comboIdToGet, { format: 'json', outputFile: outputPath });
         assert.strictEqual(spyWriteFileSyncPath, outputPath);
@@ -157,7 +163,7 @@ describe('get_combo.js library tests', () => {
     });
 
     it('should error if combo ID is not found', async () => {
-        await sandbox.global.runGetCombo("99", {}); 
+        await sandbox.global.runGetCombo("99", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Combo with ID 99 not found.")), "Error message missing.");
         assert.strictEqual(mockProcessExitCode, 1);
     });
@@ -196,10 +202,10 @@ describe('get_combo.js library tests', () => {
     });
 
     it('should error if Vial.load fails to populate combo data', async () => {
-        setupTestEnvironment({}, { 
-            load: async (kbinfoRef) => { 
-                kbinfoRef.combos = undefined; 
-                kbinfoRef.combo_count = undefined; 
+        setupTestEnvironment({}, {
+            load: async (kbinfoRef) => {
+                kbinfoRef.combos = undefined;
+                kbinfoRef.combo_count = undefined;
             }
         });
         await sandbox.global.runGetCombo("0", {});
@@ -212,12 +218,12 @@ describe('get_combo.js library tests', () => {
         const expectedFileErrorMessage = "Disk full";
         mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
         const comboIdToGet = "0";
-        
+
         await sandbox.global.runGetCombo(comboIdToGet, { outputFile: outputPath });
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing combo data to file "${outputPath}": ${expectedFileErrorMessage}`)));
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo ${comboIdToGet} Data (fallback due to file write error):`)));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0: KC_A + KC_B -> KC_C (Term: 50ms)")));
+        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0: KC_A + KC_B -> KC_C")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 });

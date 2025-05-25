@@ -4,7 +4,7 @@ const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
 
-const MAX_KEY_OVERRIDE_SLOTS_IN_TEST = 8; 
+const MAX_KEY_OVERRIDE_SLOTS_IN_TEST = 8;
 
 function loadScriptInContext(scriptPath, context) {
     const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
@@ -18,12 +18,12 @@ describe('delete_key_override.js library tests', () => {
     let mockVial;
     let mockVialKeyOverride;
     let mockVialKb;
-    let mockKey; 
+    let mockKey;
 
     // Spies
     let spyVialKeyOverridePushKbinfo;
     let spyVialKbSaveKeyOverridesCalled;
-    let spyKeyParseCalls; 
+    let spyKeyParseCalls;
 
     let consoleLogOutput;
     let consoleErrorOutput;
@@ -57,7 +57,7 @@ describe('delete_key_override.js library tests', () => {
 
         const defaultKbinfo = {
             key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST,
-            key_overrides: [], 
+            key_overrides: [],
             ...mockKbinfoInitial
         };
 
@@ -70,9 +70,9 @@ describe('delete_key_override.js library tests', () => {
                     macros: kbinfoRef.macros || [],
                     macro_count: kbinfoRef.macro_count || 0,
                 });
-                 if (mockVial && mockVial.kbinfo !== kbinfoRef) { 
+                 if (mockVial && mockVial.kbinfo !== kbinfoRef) {
                      if (mockVial.kbinfo) Object.assign(mockVial.kbinfo, kbinfoRef);
-                     else mockVial.kbinfo = kbinfoRef; 
+                     else mockVial.kbinfo = kbinfoRef;
                 }
             }
         };
@@ -80,9 +80,11 @@ describe('delete_key_override.js library tests', () => {
         if (!mockVial.kbinfo) mockVial.kbinfo = { ...defaultKbinfo } ;
 
         spyVialKeyOverridePushKbinfo = null;
+        spyVialKeyOverridePushKoid = null;
         mockVialKeyOverride = {
-            push: async (kbinfo) => { 
+            push: async (kbinfo, koid) => {
                 spyVialKeyOverridePushKbinfo = JSON.parse(JSON.stringify(kbinfo));
+                spyVialKeyOverridePushKoid = koid;
             },
             ...vialKeyOverrideMethodOverrides
         };
@@ -105,8 +107,8 @@ describe('delete_key_override.js library tests', () => {
 
         sandbox = vm.createContext({
             USB: mockUsb,
-            Vial: { ...mockVial, keyoverride: mockVialKeyOverride, kb: mockVialKb, kbinfo: mockVial.kbinfo },
-            KEY: mockKey, 
+            Vial: { ...mockVial, key_override: mockVialKeyOverride, kb: mockVialKb, kbinfo: mockVial.kbinfo },
+            KEY: mockKey,
             fs: {},
             runInitializers: () => {},
             console: {
@@ -115,7 +117,7 @@ describe('delete_key_override.js library tests', () => {
                 warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
-            require: require, 
+            require: require,
             process: {
                 get exitCode() { return mockProcessExitCode; },
                 set exitCode(val) { mockProcessExitCode = val; }
@@ -130,26 +132,27 @@ describe('delete_key_override.js library tests', () => {
 
     it('should delete an existing key override successfully', async () => {
         const initialOverridesData = [
-            { koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B") },
-            { koid: 1, trigger_key: mockKey.parse("KC_X"), override_key: mockKey.parse("KC_Y") }
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
+            { koid: 1, trigger: "KC_X", replacement: "KC_Y", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }
         ];
         // Re-initialize environment with specific kbinfo for this test
         setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
-        
+
         const idToDelete = 1;
         await sandbox.global.runDeleteKeyOverride(idToDelete.toString(), {});
 
-        assert.ok(spyVialKeyOverridePushKbinfo, "Vial.keyoverride.push was not called");
+        assert.ok(spyVialKeyOverridePushKbinfo, "Vial.key_override.push was not called");
+        assert.strictEqual(spyVialKeyOverridePushKoid, idToDelete, "Vial.key_override.push was not called with correct koid");
         const deletedOverride = spyVialKeyOverridePushKbinfo.key_overrides.find(ko => ko && ko.koid === idToDelete);
         assert.ok(deletedOverride, `Key override with ID ${idToDelete} not found in pushed data.`);
-        assert.strictEqual(deletedOverride.trigger_key, 0, "trigger_key should be 0 after deletion");
-        assert.strictEqual(deletedOverride.override_key, 0, "override_key should be 0 after deletion");
+        assert.strictEqual(deletedOverride.trigger, "KC_NO", "trigger should be KC_NO after deletion");
+        assert.strictEqual(deletedOverride.replacement, "KC_NO", "replacement should be KC_NO after deletion");
 
         const unchangedOverride = spyVialKeyOverridePushKbinfo.key_overrides.find(ko => ko && ko.koid === 0);
         assert.ok(unchangedOverride, "Unchanged override (ID 0) missing.");
-        assert.strictEqual(unchangedOverride.trigger_key, mockKey.parse("KC_A")); 
-        assert.strictEqual(unchangedOverride.override_key, mockKey.parse("KC_B")); 
-        
+        assert.strictEqual(unchangedOverride.trigger, "KC_A");
+        assert.strictEqual(unchangedOverride.replacement, "KC_B");
+
         assert.isTrue(spyVialKbSaveKeyOverridesCalled, "saveKeyOverrides was not called");
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Key override ID ${idToDelete} successfully deleted`)));
         assert.strictEqual(mockProcessExitCode, 0);
@@ -160,14 +163,14 @@ describe('delete_key_override.js library tests', () => {
             { koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B") }
         ];
         setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
-        const idToDelete = 1; 
+        const idToDelete = 1;
         await sandbox.global.runDeleteKeyOverride(idToDelete.toString(), {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Key override with ID ${idToDelete} not found or not active. Cannot delete.`)));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should error if key override ID is out of bounds', async () => {
-        setupTestEnvironment({ key_overrides: [], key_override_count: 0 }); 
+        setupTestEnvironment({ key_overrides: [], key_override_count: 0 });
         const idToDelete = 0;
         await sandbox.global.runDeleteKeyOverride(idToDelete.toString(), {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Key override ID ${idToDelete} is out of bounds. Maximum ID is -1.`)));
@@ -218,8 +221,8 @@ describe('delete_key_override.js library tests', () => {
     });
 
     it('should handle error during Vial.keyoverride.push', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, { 
-            push: async () => { throw new Error("Simulated Push Error"); } 
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {
+            push: async () => { throw new Error("Simulated Push Error"); }
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
         assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
@@ -227,8 +230,8 @@ describe('delete_key_override.js library tests', () => {
     });
 
     it('should handle error during Vial.kb.saveKeyOverrides', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, { 
-            saveKeyOverrides: async () => { throw new Error("Simulated Save Error"); } 
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, {
+            saveKeyOverrides: async () => { throw new Error("Simulated Save Error"); }
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
         assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
@@ -236,9 +239,9 @@ describe('delete_key_override.js library tests', () => {
     });
 
     it('should use Vial.kb.save if saveKeyOverrides is missing and log debug', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, { 
-            saveKeyOverrides: undefined, 
-            save: async () => { spyVialKbSaveKeyOverridesCalled = true; } 
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, {
+            saveKeyOverrides: undefined,
+            save: async () => { spyVialKbSaveKeyOverridesCalled = true; }
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
@@ -248,9 +251,9 @@ describe('delete_key_override.js library tests', () => {
     });
 
     it('should warn if no save function (saveKeyOverrides or save) is found', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, { 
-            saveKeyOverrides: undefined, 
-            save: undefined 
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, {
+            saveKeyOverrides: undefined,
+            save: undefined
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
