@@ -1,0 +1,13 @@
+# CLI Command Structure
+- User prefers CLI command structure where resource comes first followed by action (e.g., 'combo get' instead of 'get combo') to enable better command grouping with subcommands.
+
+# CLI Testing
+- All cli code should be accompanied by corresponding unit tests.
+- User prefers testing CLI commands directly with mocks rather than using execSync, as it's more reliable and allows better control over test conditions.
+- User prefers that unit tests should use VM sandbox mocking rather than integration tests with execSync.
+
+# Keybard Submodule
+- The @keybard/ submodule is read-only and cannot be modified - solutions must work with the existing data structures it provides.
+
+# QMK Settings
+- User prefers QMK settings to be displayed and accessed by setting name rather than numeric index for better usability.
