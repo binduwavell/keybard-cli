@@ -112,7 +112,7 @@ describe('key_overrides_list.js command tests', () => {
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
         assert.strictEqual(mockProcessExitCode, 0);
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Found 2 key override(s) (total slots/capacity: 16):')));
+        assert.isTrue(consoleLogOutput.some(line => line.includes('Found 2 active key override(s) (total slots: 16):')));
         assert.isTrue(consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
         assert.isTrue(consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D')));
     });
@@ -186,7 +186,7 @@ describe('key_overrides_list.js command tests', () => {
 
         assert.strictEqual(mockProcessExitCode, 0);
         assert.isTrue(consoleLogOutput.some(line => line.includes('Key override list written to /tmp/test.txt')));
-        assert.isTrue(writtenContent.includes('Found 1 key override(s)'));
+        assert.isTrue(writtenContent.includes('Found 1 active key override(s)'));
         assert.isTrue(writtenContent.includes('Override 0: KC_A -> KC_B'));
     });
 
@@ -255,7 +255,7 @@ describe('key_overrides_list.js command tests', () => {
         await sandbox.global.runListKeyOverrides({ format: 'unknown' });
 
         assert.strictEqual(mockProcessExitCode, 0);
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Found 1 key override(s)')));
+        assert.isTrue(consoleLogOutput.some(line => line.includes('Found 1 active key override(s)')));
         assert.isTrue(consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
     });
 
@@ -376,7 +376,7 @@ describe('key_overrides_list.js command tests', () => {
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes('Error writing key override list to file "/invalid/path.txt": Permission denied')));
         assert.isTrue(consoleLogOutput.some(line => line.includes('Key Override List (fallback due to file write error):')));
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Found 1 key override(s)')));
+        assert.isTrue(consoleLogOutput.some(line => line.includes('Found 1 active key override(s)')));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 

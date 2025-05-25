@@ -101,7 +101,7 @@ describe('tapdances_list.js command tests', () => {
     it('should list tapdances in text format to console', async () => {
         await sandbox.global.runListTapdances({ format: 'text' });
         const output = consoleLogOutput.join('\n');
-        assert.include(output, `Found ${sampleTapdanceCount} tapdance(s)`, "Header missing.");
+        assert.include(output, `Found ${sampleTapdanceCount} active tapdance(s) (total slots:`, "Header missing.");
         assert.include(output, "Tapdance 0: Tap(KC_A) DoubleTap(KC_B) Term(200ms)", "Tapdance 0 format incorrect.");
         assert.include(output, "Tapdance 1: Tap(KC_C) Hold(KC_D) TapHold(KC_E) Term(150ms)", "Tapdance 1 format incorrect.");
         assert.include(output, "Tapdance 2: Tap(KC_F)", "Tapdance 2 format incorrect (should only show Tap and omit 0ms term).");
@@ -119,7 +119,7 @@ describe('tapdances_list.js command tests', () => {
         const outputPath = "tapdances.txt";
         await sandbox.global.runListTapdances({ format: 'text', outputFile: outputPath });
         assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
-        assert.include(spyWriteFileSyncData, `Found ${sampleTapdanceCount} tapdance(s)`);
+        assert.include(spyWriteFileSyncData, `Found ${sampleTapdanceCount} active tapdance(s) (total slots:`);
         assert.include(spyWriteFileSyncData, "Tapdance 1: Tap(KC_C) Hold(KC_D) TapHold(KC_E) Term(150ms)");
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Tapdance list written to ${outputPath}`)));
         assert.strictEqual(mockProcessExitCode, 0);
@@ -146,6 +146,35 @@ describe('tapdances_list.js command tests', () => {
         setupTestEnvironment({ tapdance_count: 0, tapdances: [] }); // Override setup
         await sandbox.global.runListTapdances({ format: 'json' });
         assert.strictEqual(consoleLogOutput.join('\n'), JSON.stringify([], null, 2));
+        assert.strictEqual(mockProcessExitCode, 0);
+    });
+
+    it('should filter out empty tapdances in text format but include all in JSON', async () => {
+        const mixedTapdances = [
+            { tdid: 0, tap: "KC_A", hold: "KC_NO", doubletap: "KC_B", taphold: "KC_NO", tapms: 200 }, // Active
+            { tdid: 1, tap: "KC_NO", hold: "KC_NO", doubletap: "KC_NO", taphold: "KC_NO", tapms: 0 }, // Empty
+            { tdid: 2, tap: "KC_C", hold: "KC_NO", doubletap: "KC_NO", taphold: "KC_NO", tapms: 150 } // Active
+        ];
+        setupTestEnvironment({ tapdance_count: 5, tapdances: mixedTapdances });
+
+        // Test text format - should only show active tapdances
+        await sandbox.global.runListTapdances({ format: 'text' });
+        const textOutput = consoleLogOutput.join('\n');
+        assert.include(textOutput, 'Found 2 active tapdance(s) (total slots: 5):', "Should show 2 active tapdances out of 5 slots.");
+        assert.include(textOutput, 'Tapdance 0:', "Should include active tapdance 0.");
+        assert.include(textOutput, 'Tapdance 2:', "Should include active tapdance 2.");
+        assert.notInclude(textOutput, 'Tapdance 1:', "Should not include empty tapdance 1.");
+
+        // Reset console output
+        consoleLogOutput.length = 0;
+
+        // Test JSON format - should include all tapdances
+        await sandbox.global.runListTapdances({ format: 'json' });
+        const jsonOutput = JSON.parse(consoleLogOutput.join('\n'));
+        assert.strictEqual(jsonOutput.length, 3, "JSON should include all 3 tapdances.");
+        assert.strictEqual(jsonOutput[1].tdid, 1, "Should include empty tapdance in JSON.");
+        assert.strictEqual(jsonOutput[1].tap, "KC_NO", "Empty tapdance should have KC_NO tap.");
+
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
