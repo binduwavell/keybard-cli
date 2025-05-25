@@ -116,7 +116,7 @@ describe('combos_list.js command tests', () => {
     it('should list combos in text format to console', async () => {
         await sandbox.global.runListCombos({ format: 'text' });
         const output = consoleLogOutput.join('\\n');
-        assert.include(output, `Found ${sampleComboCount} active combo(s)`, "Header missing.");
+        assert.include(output, `Found ${sampleComboCount} active combo(s) (total slots`, "Header missing.");
         assert.include(output, "Combo 0: KC_A + KC_B -> KC_C", "Combo 0 format incorrect.");
         assert.include(output, "Combo 1: KC_D -> KC_E", "Combo 1 format incorrect.");
         assert.include(output, "Combo 2: KC_A + KC_E -> KC_D", "Combo 2 format incorrect.");
@@ -126,8 +126,8 @@ describe('combos_list.js command tests', () => {
     it('should list combos in JSON format to console', async () => {
         await sandbox.global.runListCombos({ format: 'json' });
         const expectedJsonObjects = sampleCombos.map((combo, idx) => {
-            // Filter out "KC_NO" trigger keys
-            const triggerKeys = combo.slice(0, 4).filter(key => key !== "KC_NO");
+            // For JSON output, include ALL trigger keys (even KC_NO)
+            const triggerKeys = combo.slice(0, 4);
             const actionKey = combo[4];
 
             return {
@@ -147,7 +147,7 @@ describe('combos_list.js command tests', () => {
         const outputPath = "combos.txt";
         await sandbox.global.runListCombos({ format: 'text', outputFile: outputPath });
         assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
-        assert.include(spyWriteFileSyncData, `Found ${sampleComboCount} active combo(s)`);
+        assert.include(spyWriteFileSyncData, `Found ${sampleComboCount} active combo(s) (total slots`);
         assert.include(spyWriteFileSyncData, "Combo 1: KC_D -> KC_E");
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo list written to ${outputPath}`)));
         assert.strictEqual(mockProcessExitCode, 0);
@@ -158,8 +158,8 @@ describe('combos_list.js command tests', () => {
         await sandbox.global.runListCombos({ format: 'json', outputFile: outputPath });
         assert.strictEqual(spyWriteFileSyncPath, outputPath);
         const expectedJsonObjects = sampleCombos.map((combo, idx) => {
-            // Filter out "KC_NO" trigger keys
-            const triggerKeys = combo.slice(0, 4).filter(key => key !== "KC_NO");
+            // For JSON output, include ALL trigger keys (even KC_NO)
+            const triggerKeys = combo.slice(0, 4);
             const actionKey = combo[4];
 
             return {

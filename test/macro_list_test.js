@@ -101,7 +101,7 @@ describe('macros_list.js command tests', () => {
         // setupTestEnvironment called by beforeEach uses default sampleMacros
         await sandbox.global.runListMacros({ format: 'text' });
         const output = consoleLogOutput.join('\n');
-        assert.include(output, `Found ${sampleMacroCount} macro(s):`, "Header missing.");
+        assert.include(output, `Found ${sampleMacroCount} active macro(s) (total slots:`, "Header missing.");
         assert.include(output, "Macro 0: Tap(KC_A) Text(\"Hello\")", "Macro 0 format incorrect.");
         assert.include(output, "Macro 1: Delay(100ms) Tap(KC_LCTL) Tap(KC_C)", "Macro 1 format incorrect.");
         assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
@@ -118,7 +118,7 @@ describe('macros_list.js command tests', () => {
         const outputPath = "macros.txt";
         await sandbox.global.runListMacros({ format: 'text', outputFile: outputPath });
         assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
-        assert.include(spyWriteFileSyncData, `Found ${sampleMacroCount} macro(s):`, "File data header missing.");
+        assert.include(spyWriteFileSyncData, `Found ${sampleMacroCount} active macro(s) (total slots:`, "File data header missing.");
         assert.include(spyWriteFileSyncData, "Macro 0: Tap(KC_A) Text(\"Hello\")", "File data Macro 0 incorrect.");
         assert.isTrue(consoleLogOutput.some(line => line.includes(`Macro list written to ${outputPath}`)), "Success message not logged.");
         assert.strictEqual(mockProcessExitCode, 0);
@@ -145,6 +145,35 @@ describe('macros_list.js command tests', () => {
         setupTestEnvironment({ macro_count: 0, macros: [] }); // Override setup
         await sandbox.global.runListMacros({ format: 'json' });
         assert.strictEqual(consoleLogOutput.join('\n'), JSON.stringify([], null, 2), "Should output empty array.");
+        assert.strictEqual(mockProcessExitCode, 0);
+    });
+
+    it('should filter out empty macros in text format but include all in JSON', async () => {
+        const mixedMacros = [
+            { mid: 0, actions: [['tap', 'KC_A']] }, // Active macro
+            { mid: 1, actions: [] }, // Empty macro
+            { mid: 2, actions: [['text', 'Hello']] } // Active macro
+        ];
+        setupTestEnvironment({ macro_count: 5, macros: mixedMacros });
+
+        // Test text format - should only show active macros
+        await sandbox.global.runListMacros({ format: 'text' });
+        const textOutput = consoleLogOutput.join('\n');
+        assert.include(textOutput, 'Found 2 active macro(s) (total slots: 5):', "Should show 2 active macros out of 5 slots.");
+        assert.include(textOutput, 'Macro 0:', "Should include active macro 0.");
+        assert.include(textOutput, 'Macro 2:', "Should include active macro 2.");
+        assert.notInclude(textOutput, 'Macro 1:', "Should not include empty macro 1.");
+
+        // Reset console output
+        consoleLogOutput.length = 0;
+
+        // Test JSON format - should include all macros
+        await sandbox.global.runListMacros({ format: 'json' });
+        const jsonOutput = JSON.parse(consoleLogOutput.join('\n'));
+        assert.strictEqual(jsonOutput.length, 3, "JSON should include all 3 macros.");
+        assert.strictEqual(jsonOutput[1].mid, 1, "Should include empty macro in JSON.");
+        assert.deepStrictEqual(jsonOutput[1].actions, [], "Empty macro should have empty actions array.");
+
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
