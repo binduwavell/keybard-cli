@@ -9,7 +9,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('get_macro.js library tests', () => {
+describe('macro_get.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;

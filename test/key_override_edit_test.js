@@ -12,7 +12,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('edit_key_override.js library tests', () => {
+describe('key_override_edit.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;

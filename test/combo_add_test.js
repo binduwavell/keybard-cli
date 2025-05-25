@@ -14,7 +14,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('add_combo.js tests', () => {
+describe('combo_add.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;

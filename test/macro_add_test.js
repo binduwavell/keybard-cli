@@ -11,7 +11,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('add_macro.js tests', () => {
+describe('macro_add.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;

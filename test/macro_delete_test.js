@@ -11,7 +11,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('delete_macro.js library tests', () => {
+describe('macro_delete.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial; 

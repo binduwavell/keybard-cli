@@ -10,7 +10,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('get_keyboard_info.js tests', () => {
+describe('keyboard_info.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
@@ -46,7 +46,7 @@ describe('get_keyboard_info.js tests', () => {
             },
             global: {},
         });
-        loadScriptInContext('lib/keyboard_info_get.js', sandbox);
+        loadScriptInContext('lib/keyboard_info.js', sandbox);
     }
 
     beforeEach(() => {

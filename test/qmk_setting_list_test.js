@@ -10,7 +10,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('list_qmk_settings.js library tests', () => {
+describe('qmk_settings_list.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;

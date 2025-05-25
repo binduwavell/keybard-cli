@@ -10,7 +10,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('download_file.js library tests', () => {
+describe('keyboard_download.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
@@ -44,7 +44,7 @@ describe('download_file.js library tests', () => {
         
         spyFsWriteFileSync = null;
         mockFs = {
-            readFileSync: () => { throw new Error("readFileSync should not be called by download_file.js"); },
+            readFileSync: () => { throw new Error("readFileSync should not be called by keyboard_download.js"); },
             writeFileSync: (filepath, data) => {
                 spyFsWriteFileSync = { filepath, data };
                 if (fsConfig.writeFileSyncThrows) throw new Error("Simulated fs.writeFileSync error");
@@ -112,7 +112,7 @@ describe('download_file.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/file_download.js', sandbox);
+        loadScriptInContext('lib/keyboard_download.js', sandbox);
     }
 
     beforeEach(() => {

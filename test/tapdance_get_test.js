@@ -9,7 +9,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('get_tapdance.js library tests', () => {
+describe('tapdance_get.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;

@@ -9,7 +9,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('set_keymap.js library tests', () => {
+describe('keymap_set.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;

@@ -13,7 +13,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('delete_combo.js tests', () => {
+describe('combo_delete.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;

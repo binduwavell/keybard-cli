@@ -9,7 +9,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('list_combos.js library tests', () => {
+describe('combos_list.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;

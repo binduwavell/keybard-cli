@@ -10,7 +10,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('upload_file.js library tests', () => {
+describe('keyboard_upload.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
@@ -258,7 +258,7 @@ describe('upload_file.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/file_upload.js', sandbox);
+        loadScriptInContext('lib/keyboard_upload.js', sandbox);
     }
 
     beforeEach(() => {
@@ -338,7 +338,7 @@ describe('upload_file.js library tests', () => {
         });
 
         try {
-            loadScriptInContext('lib/file_upload.js', sandbox);
+            loadScriptInContext('lib/keyboard_upload.js', sandbox);
 
             if (sandbox.global.runUploadFile) {
                 try {
