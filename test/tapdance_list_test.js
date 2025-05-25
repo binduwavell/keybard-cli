@@ -88,8 +88,12 @@ describe('tapdances_list.js command tests', () => {
             process: {
                 get exitCode() { return mockProcessExitCode; },
                 set exitCode(val) { mockProcessExitCode = val; }
-            }
+            },
+            debug: () => () => {}
         });
+
+        // Load device selection first, then command utils, then tapdance_list
+        loadScriptInContext('lib/common/device-selection.js', sandbox);
         loadScriptInContext('lib/common/command-utils.js', sandbox);
         loadScriptInContext('lib/tapdance_list.js', sandbox);
     }

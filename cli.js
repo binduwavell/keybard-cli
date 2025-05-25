@@ -74,7 +74,10 @@ sandbox.fs = fs;
 // Add process to the sandbox for exit code handling
 sandbox.process = process;
 
-// Load common command utilities into the sandbox
+// Load common utilities into the sandbox
+const deviceSelectionScript = fs.readFileSync(path.resolve(__dirname, 'lib/common/device-selection.js'), 'utf8');
+vm.runInContext(deviceSelectionScript, sandbox);
+
 const commandUtilsScript = fs.readFileSync(path.resolve(__dirname, 'lib/common/command-utils.js'), 'utf8');
 vm.runInContext(commandUtilsScript, sandbox);
 
@@ -151,7 +154,14 @@ keyboardCmd
   .command('devices')
   .description('List connected USB HID devices compatible with Vial.')
   .action(() => {
-    vm.runInContext('USB.list();', sandbox);
+    vm.runInContext(`
+      const devices = USB.list();
+      if (devices.length === 0) {
+        console.error('No compatible keyboards found.');
+      } else {
+        console.log(global.deviceSelection.formatDeviceList(devices));
+      }
+    `, sandbox);
   });
 
 keyboardCmd

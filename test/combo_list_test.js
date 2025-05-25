@@ -103,8 +103,12 @@ describe('combos_list.js command tests', () => {
             process: {
                 get exitCode() { return mockProcessExitCode; },
                 set exitCode(val) { mockProcessExitCode = val; }
-            }
+            },
+            debug: () => () => {}
         });
+
+        // Load device selection first, then command utils, then combo_list
+        loadScriptInContext('lib/common/device-selection.js', sandbox);
         loadScriptInContext('lib/common/command-utils.js', sandbox);
         loadScriptInContext('lib/combo_list.js', sandbox);
     }

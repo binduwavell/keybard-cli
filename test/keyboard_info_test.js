@@ -1,6 +1,6 @@
 const { expect, assert } = require('chai'); // Using expect for consistency, or assert from Chai
 const vm = require('vm');
-const fs = require('fs'); 
+const fs = require('fs');
 const path = require('path');
 
 // Helper to load script into a new context
@@ -23,7 +23,7 @@ describe('keyboard_info.js command tests', () => {
             list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
             open: async () => true,
             close: () => { mockUsb.device = null; },
-            device: true 
+            device: true
         };
         mockVial = {
             init: async (kbinfo) => { Object.assign(kbinfo, { vialInit: true }); },
@@ -45,7 +45,11 @@ describe('keyboard_info.js command tests', () => {
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
+            debug: () => () => {}
         });
+
+        // Load device selection first, then keyboard_info
+        loadScriptInContext('lib/common/device-selection.js', sandbox);
         loadScriptInContext('lib/keyboard_info.js', sandbox);
     }
 
@@ -93,7 +97,7 @@ describe('keyboard_info.js command tests', () => {
             writtenFilePath = filepath;
             writtenData = data;
         };
-        
+
         const testOutputFile = 'test_output.json';
         await sandbox.global.runGetKeyboardInfo(testOutputFile);
 
@@ -109,7 +113,7 @@ describe('keyboard_info.js command tests', () => {
         mockFs.writeFileSync = (filepath, data) => {
             throw new Error(fileWriteErrorMessage);
         };
-        
+
         const testOutputFile = 'error_output.json';
         await sandbox.global.runGetKeyboardInfo(testOutputFile);
 
