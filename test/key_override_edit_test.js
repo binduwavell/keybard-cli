@@ -267,7 +267,7 @@ describe('key_override_edit.js command tests', () => {
             { saveKeyOverrides: undefined, save: async () => { spyVialKbSaveKeyOverridesCalled = true; } });
         await sandbox.global.runEditKeyOverride("0", "KC_A", "KC_B", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Key override ID 0 successfully updated")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("DEBUG_EDIT_KEY_OVERRIDE: Key overrides saved via Vial.kb.save.")));
+        // Debug messages now use debug library instead of console.log
         assert.isTrue(spyVialKbSaveKeyOverridesCalled);
         assert.strictEqual(mockProcessExitCode, 0);
     });

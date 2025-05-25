@@ -570,6 +570,62 @@ Change a QMK setting on the keyboard by its name and new value.
 - Numeric settings: `200`, `150`
 - String settings: `"John Doe"` (use quotes for strings with spaces)
 
+## Debugging
+
+KeyBard CLI uses the [debug](https://www.npmjs.com/package/debug) library for detailed debugging output. This can be helpful for troubleshooting issues or understanding what the CLI is doing internally.
+
+### Enabling Debug Output
+
+To enable debug output, set the `DEBUG` environment variable before running any command:
+
+**Enable all debug output:**
+```bash
+DEBUG=keybard:* ./keybard-cli.js keyboard info
+```
+
+**Enable specific debug categories:**
+```bash
+# USB operations only
+DEBUG=keybard:usb ./keybard-cli.js keyboard info
+
+# Macro operations only
+DEBUG=keybard:macro ./keybard-cli.js macro list
+
+# Multiple categories
+DEBUG=keybard:usb,keybard:vial ./keybard-cli.js keyboard info
+```
+
+### Available Debug Categories
+
+- `keybard:usb` - USB device connection and communication
+- `keybard:utils` - Common utility functions and device operations
+- `keybard:macro` - Macro operations (add, edit, delete)
+- `keybard:combo` - Combo operations (add, edit, delete)
+- `keybard:key-override` - Key override operations
+- `keybard:keymap` - Keymap operations
+- `keybard:qmk` - QMK settings operations
+- `keybard:keyboard` - General keyboard operations
+
+### Debug Output Examples
+
+```bash
+# See USB device detection and connection details
+DEBUG=keybard:usb ./keybard-cli.js keyboard info
+
+# See detailed macro processing
+DEBUG=keybard:macro ./keybard-cli.js macro add "KC_H,KC_I"
+
+# See all internal operations
+DEBUG=keybard:* ./keybard-cli.js combo add "KC_A+KC_S KC_D"
+```
+
+The debug output will show detailed information about:
+- Device discovery and connection
+- Data loading and processing
+- API calls to the keyboard
+- Error conditions and recovery
+- Performance timing
+
 ## Contributing
 
 Contributions are welcome! Please feel free to open an issue to report bugs or suggest features, or submit a pull request with your improvements.

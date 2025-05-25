@@ -245,7 +245,7 @@ describe('key_override_delete.js command tests', () => {
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("DEBUG_DELETE_KEY_OVERRIDE: Key overrides saved via Vial.kb.save.")));
+        // Debug messages now use debug library instead of console.log
         assert.isTrue(spyVialKbSaveKeyOverridesCalled);
         assert.strictEqual(mockProcessExitCode, 0);
     });

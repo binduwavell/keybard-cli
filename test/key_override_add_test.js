@@ -241,11 +241,10 @@ describe('key_override_add.js command tests', () => {
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
-    it('should use Vial.kb.save if saveKeyOverrides is missing and log debug message', async () => {
+    it('should use Vial.kb.save if saveKeyOverrides is missing', async () => {
         setupTestEnvironment({}, {}, {}, { saveKeyOverrides: undefined, save: async () => { spyVialKbSaveKeyOverridesCalled = true; } });
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("DEBUG_ADD_KEY_OVERRIDE: Key overrides saved via Vial.kb.save.")));
         assert.isTrue(spyVialKbSaveKeyOverridesCalled);
         assert.strictEqual(mockProcessExitCode, 0);
     });
