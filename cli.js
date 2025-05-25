@@ -64,8 +64,15 @@ files.forEach((file) => {
 // Add fs to the sandbox for file operations within sandboxed scripts
 sandbox.fs = fs;
 
-program
-  .command('get keyboard-info')
+// Add process to the sandbox for exit code handling
+sandbox.process = process;
+
+// Keyboard command group
+const keyboardCmd = program.command('keyboard');
+keyboardCmd.description('Keyboard information and keymap operations');
+
+keyboardCmd
+  .command('info')
   .description('Pull all available information from the connected keyboard.')
   .option('-o, --output <filepath>', 'Specify output file for keyboard information (JSON)')
   .action((options) => {
@@ -75,8 +82,8 @@ program
     sandbox.global.runGetKeyboardInfo(options.output);
   });
 
-program
-  .command('get keymap')
+keyboardCmd
+  .command('get-keymap')
   .description('View keymap, optionally for a specific layer, and specify output format.')
   .option('-l, --layer <number>', 'Specify layer number to retrieve')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'json')
@@ -93,24 +100,8 @@ program
     });
   });
 
-program
-  .command('get macro <id>')
-  .description('View a specific macro by its ID.')
-  .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
-  .option('-o, --output <filepath>', 'Specify output file for the macro data')
-  .action((id, options) => {
-    const getMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/get_macro.js'), 'utf8');
-    vm.runInContext(getMacroScript, sandbox);
-    // The script exposes runGetMacro on the global object in the sandbox
-    // process.exitCode will be set by runGetMacro itself.
-    sandbox.global.runGetMacro(id, {
-      format: options.format,
-      outputFile: options.output
-    });
-  });
-
-program
-  .command('set keymap <key_definition> <position_index>')
+keyboardCmd
+  .command('set-keymap <key_definition> <position_index>')
   .description('Set a specific key on the keymap at a given position index.')
   .option('-l, --layer <number>', 'Specify layer number (defaults to 0)', '0')
   .action((keyDefinition, positionIndex, options) => {
@@ -123,8 +114,8 @@ program
     });
   });
 
-program
-  .command('upload keymap <filepath_json>')
+keyboardCmd
+  .command('upload-keymap <filepath_json>')
   .description('Load a full keymap from a JSON file and apply it to the keyboard.')
   .action((filepathJson) => {
     const uploadKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/upload_keymap.js'), 'utf8');
@@ -134,8 +125,8 @@ program
     sandbox.global.runUploadKeymap(filepathJson);
   });
 
-program
-  .command('download keymap <filepath_json>')
+keyboardCmd
+  .command('download-keymap <filepath_json>')
   .description('Save the current keyboard keymap to a file in JSON format.')
   .action((filepathJson) => {
     const downloadKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/download_keymap.js'), 'utf8');
@@ -145,8 +136,12 @@ program
     sandbox.global.runDownloadKeymap(filepathJson);
   });
 
-program
-  .command('upload file <filepath>')
+// File command group
+const fileCmd = program.command('file');
+fileCmd.description('File upload and download operations');
+
+fileCmd
+  .command('upload <filepath>')
   .description('Upload and apply a .vil (Vial keymap) or .svl (Svalboard/KeyBard full config) file to the keyboard.')
   .addHelpText('after', '\nSupported file types: .vil, .svl')
   .action((filepath, options) => {
@@ -157,8 +152,8 @@ program
     sandbox.global.runUploadFile(filepath, options);
   });
 
-program
-  .command('download file <filepath>')
+fileCmd
+  .command('download <filepath>')
   .description('Download the current keyboard configuration (keymap, macros, overrides, settings) to an .svl file.')
   .addHelpText('after', '\nOutput file must have an .svl extension.')
   .action((filepath, options) => {
@@ -169,8 +164,12 @@ program
     sandbox.global.runDownloadFile(filepath, options);
   });
 
-program
-  .command('list macros')
+// Macro command group
+const macroCmd = program.command('macro');
+macroCmd.description('Macro operations');
+
+macroCmd
+  .command('list')
   .description('List all macros from the keyboard.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the macro list')
@@ -185,8 +184,24 @@ program
     });
   });
 
-program
-  .command('add macro <sequence_definition>')
+macroCmd
+  .command('get <id>')
+  .description('View a specific macro by its ID.')
+  .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
+  .option('-o, --output <filepath>', 'Specify output file for the macro data')
+  .action((id, options) => {
+    const getMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/get_macro.js'), 'utf8');
+    vm.runInContext(getMacroScript, sandbox);
+    // The script exposes runGetMacro on the global object in the sandbox
+    // process.exitCode will be set by runGetMacro itself.
+    sandbox.global.runGetMacro(id, {
+      format: options.format,
+      outputFile: options.output
+    });
+  });
+
+macroCmd
+  .command('add <sequence_definition>')
   .description('Add a new macro with a sequence definition string (e.g., "KC_A,DELAY(100),LCTL(KC_C)").')
   .action((sequenceDefinition, options) => {
     const addMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/add_macro.js'), 'utf8');
@@ -196,8 +211,8 @@ program
     sandbox.global.runAddMacro(sequenceDefinition, options); // options might be used later
   });
 
-program
-  .command('edit macro <id> <new_sequence_definition>')
+macroCmd
+  .command('edit <id> <new_sequence_definition>')
   .description('Edit an existing macro by its ID with a new sequence definition.')
   .action((id, newSequenceDefinition, options) => {
     const editMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/edit_macro.js'), 'utf8');
@@ -207,19 +222,23 @@ program
     sandbox.global.runEditMacro(id, newSequenceDefinition, options); // options might be used later
   });
 
-program
-  .command('delete macro <id>')
+macroCmd
+  .command('delete <id>')
   .description('Delete a macro by its ID (clears its actions).')
   .action((id, options) => { // options might be used later if flags are added
     const deleteMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/delete_macro.js'), 'utf8');
     vm.runInContext(deleteMacroScript, sandbox);
     // The script exposes runDeleteMacro on the global object in the sandbox
     // process.exitCode will be set by runDeleteMacro itself.
-    sandbox.global.runDeleteMacro(id, options); 
+    sandbox.global.runDeleteMacro(id, options);
   });
 
-program
-  .command('list tapdances')
+// Tapdance command group
+const tapdanceCmd = program.command('tapdance');
+tapdanceCmd.description('Tapdance operations');
+
+tapdanceCmd
+  .command('list')
   .description('List all tapdances from the keyboard.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the tapdance list')
@@ -234,8 +253,8 @@ program
     });
   });
 
-program
-  .command('get tapdance <id>')
+tapdanceCmd
+  .command('get <id>')
   .description('View a specific tapdance by its ID.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the tapdance data')
@@ -250,8 +269,8 @@ program
     });
   });
 
-program
-  .command('add tapdance <sequence_definition>')
+tapdanceCmd
+  .command('add <sequence_definition>')
   .description('Add a new tapdance with a sequence definition string (e.g., "TAP(KC_A),TERM(200)").')
   .action((sequenceDefinition, options) => {
     const addTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/add_tapdance.js'), 'utf8');
@@ -261,8 +280,8 @@ program
     sandbox.global.runAddTapdance(sequenceDefinition, options); // options for future use
   });
 
-program
-  .command('edit tapdance <id> <new_sequence_definition>')
+tapdanceCmd
+  .command('edit <id> <new_sequence_definition>')
   .description('Edit an existing tapdance by its ID with a new sequence definition.')
   .action((id, newSequenceDefinition, options) => {
     const editTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/edit_tapdance.js'), 'utf8');
@@ -272,19 +291,23 @@ program
     sandbox.global.runEditTapdance(id, newSequenceDefinition, options); // options for future use
   });
 
-program
-  .command('delete tapdance <id>')
+tapdanceCmd
+  .command('delete <id>')
   .description('Delete a tapdance by its ID (clears its actions and sets term to 0).')
   .action((id, options) => { // options for future use
     const deleteTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/delete_tapdance.js'), 'utf8');
     vm.runInContext(deleteTapdanceScript, sandbox);
     // The script exposes runDeleteTapdance on the global object in the sandbox
     // process.exitCode will be set by runDeleteTapdance itself.
-    sandbox.global.runDeleteTapdance(id, options); 
+    sandbox.global.runDeleteTapdance(id, options);
   });
 
-program
-  .command('list combos')
+// Combo command group
+const comboCmd = program.command('combo');
+comboCmd.description('Combo operations');
+
+comboCmd
+  .command('list')
   .description('List all combos from the keyboard.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the combo list')
@@ -299,8 +322,8 @@ program
     });
   });
 
-program
-  .command('get combo <id>')
+comboCmd
+  .command('get <id>')
   .description('View a specific combo by its ID.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the combo data')
@@ -315,8 +338,8 @@ program
     });
   });
 
-program
-  .command('add combo <definition_string>')
+comboCmd
+  .command('add <definition_string>')
   .description('Add a new combo (e.g., "KC_A+KC_S KC_D"). Trigger keys separated by "+", then space, then action key.')
   .option('-t, --term <milliseconds>', 'Set combo term/timeout in milliseconds (e.g., 50).')
   .action((definitionString, options) => {
@@ -324,11 +347,11 @@ program
     vm.runInContext(addComboScript, sandbox);
     // The script exposes runAddCombo on the global object in the sandbox
     // process.exitCode will be set by runAddCombo itself.
-    sandbox.global.runAddCombo(definitionString, { term: options.term }); 
+    sandbox.global.runAddCombo(definitionString, { term: options.term });
   });
 
-program
-  .command('edit combo <id> <new_definition_string>')
+comboCmd
+  .command('edit <id> <new_definition_string>')
   .description('Edit an existing combo by its ID (e.g., "KC_X+KC_Y KC_Z").')
   .option('-t, --term <milliseconds>', 'Set new combo term/timeout in milliseconds.')
   .action((id, newDefinitionString, options) => {
@@ -336,57 +359,26 @@ program
     vm.runInContext(editComboScript, sandbox);
     // The script exposes runEditCombo on the global object in the sandbox
     // process.exitCode will be set by runEditCombo itself.
-    sandbox.global.runEditCombo(id, newDefinitionString, { term: options.term }); 
+    sandbox.global.runEditCombo(id, newDefinitionString, { term: options.term });
   });
 
-program
-  .command('delete combo <id>')
+comboCmd
+  .command('delete <id>')
   .description('Delete a combo by its ID (disables it and clears keys/term).')
   .action((id, options) => { // options for future use, if any
     const deleteComboScript = fs.readFileSync(path.resolve(__dirname, 'lib/delete_combo.js'), 'utf8');
     vm.runInContext(deleteComboScript, sandbox);
     // The script exposes runDeleteCombo on the global object in the sandbox
     // process.exitCode will be set by runDeleteCombo itself.
-    sandbox.global.runDeleteCombo(id, options); 
+    sandbox.global.runDeleteCombo(id, options);
   });
 
-program
-  .command('add key-override <trigger_key_string> <override_key_string>')
-  .description('Add a new key override (e.g., "KC_A KC_B" to make KC_A behave as KC_B).')
-  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
-  .action((triggerKeyString, overrideKeyString, options) => {
-    const addKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/add_key_override.js'), 'utf8');
-    vm.runInContext(addKeyOverrideScript, sandbox);
-    // The script exposes runAddKeyOverride on the global object in the sandbox
-    // process.exitCode will be set by runAddKeyOverride itself.
-    sandbox.global.runAddKeyOverride(triggerKeyString, overrideKeyString, options); // Pass options if any
-  });
+// Key-override command group
+const keyOverrideCmd = program.command('key-override');
+keyOverrideCmd.description('Key override operations');
 
-program
-  .command('edit key-override <id> <new_trigger_key_string> <new_override_key_string>')
-  .description('Edit an existing key override by ID (e.g., "0 KC_B KC_C" to change override 0 to KC_B -> KC_C).')
-  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
-  .action((id, newTriggerKeyString, newOverrideKeyString, options) => {
-    const editKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/edit_key_override.js'), 'utf8');
-    vm.runInContext(editKeyOverrideScript, sandbox);
-    // The script exposes runEditKeyOverride on the global object in the sandbox
-    // process.exitCode will be set by runEditKeyOverride itself.
-    sandbox.global.runEditKeyOverride(id, newTriggerKeyString, newOverrideKeyString, options);
-  });
-
-program
-  .command('delete key-override <id>')
-  .description('Delete a key override by its ID (e.g., "0" to delete override 0). This sets its keys to 0.')
-  .action((id, options) => { // options for future use, if any
-    const deleteKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/delete_key_override.js'), 'utf8');
-    vm.runInContext(deleteKeyOverrideScript, sandbox);
-    // The script exposes runDeleteKeyOverride on the global object in the sandbox
-    // process.exitCode will be set by runDeleteKeyOverride itself.
-    sandbox.global.runDeleteKeyOverride(id, options);
-  });
-
-program
-  .command('list key-overrides')
+keyOverrideCmd
+  .command('list')
   .description('List all key overrides from the keyboard.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the key override list')
@@ -401,45 +393,8 @@ program
     });
   });
 
-program
-  .command('list qmk-settings')
-  .description('List all available QMK settings and their current values from the keyboard.')
-  .option('-o, --output-file <filepath>', 'Save settings as JSON to a file.')
-  .action((options) => {
-    const listQmkSettingsScript = fs.readFileSync(path.resolve(__dirname, 'lib/list_qmk_settings.js'), 'utf8');
-    vm.runInContext(listQmkSettingsScript, sandbox);
-    // The script exposes runListQmkSettings on the global object in the sandbox
-    // process.exitCode will be set by runListQmkSettings itself.
-    // The options object from commander will contain `outputFile` if the user provides it.
-    sandbox.global.runListQmkSettings(options);
-  });
-
-program
-  .command('get qmk-setting <setting_name>')
-  .description('View a specific QMK setting by its name from the keyboard.')
-  // .option('-o, --output <filepath>', 'Specify output file for the setting (e.g., JSON)') // Future option
-  .action((settingName, options) => {
-    const getQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/get_qmk_setting.js'), 'utf8');
-    vm.runInContext(getQmkSettingScript, sandbox);
-    // The script exposes runGetQmkSetting on the global object in the sandbox
-    // process.exitCode will be set by runGetQmkSetting itself.
-    sandbox.global.runGetQmkSetting(settingName, options);
-  });
-
-program
-  .command('set qmk-setting <setting_name> <value>')
-  .description('Change a QMK setting on the keyboard by its name and new value.')
-  .addHelpText('after', '\nExamples:\n  keybard-cli set qmk-setting TapToggleEnable true\n  keybard-cli set qmk-setting MaxTapTime 200\n  keybard-cli set qmk-setting UserFullName "John Doe"')
-  .action((settingName, value, options) => {
-    const setQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/set_qmk_setting.js'), 'utf8');
-    vm.runInContext(setQmkSettingScript, sandbox);
-    // The script exposes runSetQmkSetting on the global object in the sandbox
-    // process.exitCode will be set by runSetQmkSetting itself.
-    sandbox.global.runSetQmkSetting(settingName, value, options);
-  });
-
-program
-  .command('get key-override <id>')
+keyOverrideCmd
+  .command('get <id>')
   .description('View a specific key override by its ID/index.')
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the key override data')
@@ -454,9 +409,88 @@ program
     });
   });
 
-// Keep the original simple 'list' command for USB devices
-program.command('list devices').description('List connected USB HID devices compatible with Vial.').action(() => {
-  vm.runInContext('USB.list();', sandbox);
-});
+keyOverrideCmd
+  .command('add <trigger_key_string> <override_key_string>')
+  .description('Add a new key override (e.g., "KC_A KC_B" to make KC_A behave as KC_B).')
+  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
+  .action((triggerKeyString, overrideKeyString, options) => {
+    const addKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/add_key_override.js'), 'utf8');
+    vm.runInContext(addKeyOverrideScript, sandbox);
+    // The script exposes runAddKeyOverride on the global object in the sandbox
+    // process.exitCode will be set by runAddKeyOverride itself.
+    sandbox.global.runAddKeyOverride(triggerKeyString, overrideKeyString, options); // Pass options if any
+  });
+
+keyOverrideCmd
+  .command('edit <id> <new_trigger_key_string> <new_override_key_string>')
+  .description('Edit an existing key override by ID (e.g., "0 KC_B KC_C" to change override 0 to KC_B -> KC_C).')
+  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
+  .action((id, newTriggerKeyString, newOverrideKeyString, options) => {
+    const editKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/edit_key_override.js'), 'utf8');
+    vm.runInContext(editKeyOverrideScript, sandbox);
+    // The script exposes runEditKeyOverride on the global object in the sandbox
+    // process.exitCode will be set by runEditKeyOverride itself.
+    sandbox.global.runEditKeyOverride(id, newTriggerKeyString, newOverrideKeyString, options);
+  });
+
+keyOverrideCmd
+  .command('delete <id>')
+  .description('Delete a key override by its ID (e.g., "0" to delete override 0). This sets its keys to 0.')
+  .action((id, options) => { // options for future use, if any
+    const deleteKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/delete_key_override.js'), 'utf8');
+    vm.runInContext(deleteKeyOverrideScript, sandbox);
+    // The script exposes runDeleteKeyOverride on the global object in the sandbox
+    // process.exitCode will be set by runDeleteKeyOverride itself.
+    sandbox.global.runDeleteKeyOverride(id, options);
+  });
+
+// QMK-setting command group
+const qmkSettingCmd = program.command('qmk-setting');
+qmkSettingCmd.description('QMK setting operations');
+
+qmkSettingCmd
+  .command('list')
+  .description('List all available QMK settings and their current values from the keyboard.')
+  .option('-o, --output-file <filepath>', 'Save settings as JSON to a file.')
+  .action((options) => {
+    const listQmkSettingsScript = fs.readFileSync(path.resolve(__dirname, 'lib/list_qmk_settings.js'), 'utf8');
+    vm.runInContext(listQmkSettingsScript, sandbox);
+    // The script exposes runListQmkSettings on the global object in the sandbox
+    // process.exitCode will be set by runListQmkSettings itself.
+    // The options object from commander will contain `outputFile` if the user provides it.
+    sandbox.global.runListQmkSettings(options);
+  });
+
+qmkSettingCmd
+  .command('get <setting_name>')
+  .description('View a specific QMK setting by its name from the keyboard.')
+  // .option('-o, --output <filepath>', 'Specify output file for the setting (e.g., JSON)') // Future option
+  .action((settingName, options) => {
+    const getQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/get_qmk_setting.js'), 'utf8');
+    vm.runInContext(getQmkSettingScript, sandbox);
+    // The script exposes runGetQmkSetting on the global object in the sandbox
+    // process.exitCode will be set by runGetQmkSetting itself.
+    sandbox.global.runGetQmkSetting(settingName, options);
+  });
+
+qmkSettingCmd
+  .command('set <setting_name> <value>')
+  .description('Change a QMK setting on the keyboard by its name and new value.')
+  .addHelpText('after', '\nExamples:\n  keybard-cli qmk-setting set TapToggleEnable true\n  keybard-cli qmk-setting set MaxTapTime 200\n  keybard-cli qmk-setting set UserFullName "John Doe"')
+  .action((settingName, value, options) => {
+    const setQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/set_qmk_setting.js'), 'utf8');
+    vm.runInContext(setQmkSettingScript, sandbox);
+    // The script exposes runSetQmkSetting on the global object in the sandbox
+    // process.exitCode will be set by runSetQmkSetting itself.
+    sandbox.global.runSetQmkSetting(settingName, value, options);
+  });
+
+// Devices command
+program
+  .command('devices')
+  .description('List connected USB HID devices compatible with Vial.')
+  .action(() => {
+    vm.runInContext('USB.list();', sandbox);
+  });
 
 program.parse(process.argv);
