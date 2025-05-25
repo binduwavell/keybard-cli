@@ -68,6 +68,10 @@ sandbox.fs = fs;
 // Add process to the sandbox for exit code handling
 sandbox.process = process;
 
+// Load common command utilities into the sandbox
+const commandUtilsScript = fs.readFileSync(path.resolve(__dirname, 'lib/common/command-utils.js'), 'utf8');
+vm.runInContext(commandUtilsScript, sandbox);
+
 // Keyboard command group
 const keyboardCmd = program.command('keyboard');
 keyboardCmd.description('Keyboard information and keymap operations');
@@ -77,7 +81,7 @@ keyboardCmd
   .description('Pull all available information from the connected keyboard.')
   .option('-o, --output <filepath>', 'Specify output file for keyboard information (JSON)')
   .action((options) => {
-    const getKeyboardInfoScript = fs.readFileSync(path.resolve(__dirname, 'lib/keyboard_info_get.js'), 'utf8');
+    const getKeyboardInfoScript = fs.readFileSync(path.resolve(__dirname, 'lib/keyboard_info.js'), 'utf8');
     vm.runInContext(getKeyboardInfoScript, sandbox);
     // The script exposes runGetKeyboardInfo on the global object in the sandbox
     sandbox.global.runGetKeyboardInfo(options.output);
@@ -149,7 +153,7 @@ keyboardCmd
   .description('Upload and apply a .vil (Vial keymap) or .svl (Svalboard/KeyBard full config) file to the keyboard.')
   .addHelpText('after', '\nSupported file types: .vil, .svl')
   .action((filepath, options) => {
-    const uploadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/file_upload.js'), 'utf8');
+    const uploadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/keyboard_upload.js'), 'utf8');
     vm.runInContext(uploadFileScript, sandbox);
     // The script exposes runUploadFile on the global object in the sandbox
     // process.exitCode will be set by runUploadFile itself.
@@ -161,7 +165,7 @@ keyboardCmd
   .description('Download the current keyboard configuration (keymap, macros, overrides, settings) to an .svl file.')
   .addHelpText('after', '\nOutput file must have an .svl extension.')
   .action((filepath, options) => {
-    const downloadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/file_download.js'), 'utf8');
+    const downloadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/keyboard_download.js'), 'utf8');
     vm.runInContext(downloadFileScript, sandbox);
     // The script exposes runDownloadFile on the global object in the sandbox
     // process.exitCode will be set by runDownloadFile itself.

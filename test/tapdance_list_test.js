@@ -1,7 +1,7 @@
 const { assert } = require('chai'); // Switched to Chai's assert
 const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 
 function loadScriptInContext(scriptPath, context) {
     const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
@@ -13,9 +13,9 @@ describe('tapdances_list.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockVialKb; 
-    let mockKey;    
-    let mockFs; 
+    let mockVialKb;
+    let mockKey;
+    let mockFs;
     let consoleLogOutput;
     let consoleErrorOutput;
     let mockProcessExitCode;
@@ -28,7 +28,7 @@ describe('tapdances_list.js command tests', () => {
     const sampleTapdances = [
         { tdid: 0, tap: "KC_A", hold: "KC_NO", doubletap: "KC_B", taphold: "KC_NO", tapms: 200 },
         { tdid: 1, tap: "KC_C", hold: "KC_D", doubletap: "KC_NO", taphold: "KC_E", tapms: 150 },
-        { tdid: 2, tap: "KC_F", hold: "KC_NO", doubletap: "KC_NO", taphold: "KC_NO", tapms: 0 } 
+        { tdid: 2, tap: "KC_F", hold: "KC_NO", doubletap: "KC_NO", taphold: "KC_NO", tapms: 0 }
     ];
     const sampleTapdanceCount = sampleTapdances.length;
 
@@ -42,13 +42,13 @@ describe('tapdances_list.js command tests', () => {
 
         const defaultKbinfo = {
             tapdance_count: sampleTapdanceCount,
-            tapdances: JSON.parse(JSON.stringify(sampleTapdances)), 
-            ...mockKbinfoData 
+            tapdances: JSON.parse(JSON.stringify(sampleTapdances)),
+            ...mockKbinfoData
         };
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     tapdance_count: defaultKbinfo.tapdance_count,
                     tapdances: JSON.parse(JSON.stringify(defaultKbinfo.tapdances)),
@@ -56,8 +56,8 @@ describe('tapdances_list.js command tests', () => {
             }
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        
-        mockVialKb = {}; 
+
+        mockVialKb = {};
         mockKey = { /* KEY object exists */ };
 
         spyWriteFileSyncPath = null;
@@ -75,14 +75,14 @@ describe('tapdances_list.js command tests', () => {
 
         sandbox = vm.createContext({
             USB: mockUsb,
-            Vial: { ...mockVial, kb: mockVialKb }, 
+            Vial: { ...mockVial, kb: mockVialKb },
             KEY: mockKey,
-            fs: mockFs, 
+            fs: mockFs,
             runInitializers: () => {},
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')), 
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
             process: {
@@ -90,6 +90,7 @@ describe('tapdances_list.js command tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
+        loadScriptInContext('lib/common/command-utils.js', sandbox);
         loadScriptInContext('lib/tapdance_list.js', sandbox);
     }
 
@@ -156,9 +157,9 @@ describe('tapdances_list.js command tests', () => {
     });
 
     it('should error if Vial.load fails to populate tapdance data', async () => {
-        setupTestEnvironment({}, { load: async (kbinfoRef) => { 
-            kbinfoRef.tapdances = undefined; 
-            kbinfoRef.tapdance_count = undefined; 
+        setupTestEnvironment({}, { load: async (kbinfoRef) => {
+            kbinfoRef.tapdances = undefined;
+            kbinfoRef.tapdance_count = undefined;
         }});
         await sandbox.global.runListTapdances({});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Tapdance data not fully populated by Vial functions.")));
@@ -169,7 +170,7 @@ describe('tapdances_list.js command tests', () => {
         const outputPath = "tapdances_error.txt";
         const expectedFileErrorMessage = "Disk full";
         mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
-        
+
         await sandbox.global.runListTapdances({ outputFile: outputPath });
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing tapdance list to file "${outputPath}": ${expectedFileErrorMessage}`)));

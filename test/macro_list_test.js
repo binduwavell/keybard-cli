@@ -1,7 +1,7 @@
 const { assert } = require('chai'); // Switched to Chai's assert
 const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 
 function loadScriptInContext(scriptPath, context) {
     const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
@@ -13,9 +13,9 @@ describe('macros_list.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockVialKb; 
-    let mockKey;    
-    let mockFs; 
+    let mockVialKb;
+    let mockKey;
+    let mockFs;
     let consoleLogOutput;
     let consoleErrorOutput;
     let mockProcessExitCode;
@@ -42,12 +42,12 @@ describe('macros_list.js command tests', () => {
         const defaultKbinfo = {
             macro_count: sampleMacroCount, // Default to having sample macros
             macros: JSON.parse(JSON.stringify(sampleMacros)), // Use deep copy
-            ...mockKbinfoData 
+            ...mockKbinfoData
         };
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => { /* Basic setup */ },
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     macro_count: defaultKbinfo.macro_count,
                     macros: JSON.parse(JSON.stringify(defaultKbinfo.macros)),
@@ -55,8 +55,8 @@ describe('macros_list.js command tests', () => {
             }
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        
-        mockVialKb = {}; 
+
+        mockVialKb = {};
         mockKey = { /* KEY object exists, its methods not directly called by list_macros.js */ };
 
         spyWriteFileSyncPath = null;
@@ -74,13 +74,14 @@ describe('macros_list.js command tests', () => {
 
         sandbox = vm.createContext({
             USB: mockUsb,
-            Vial: { ...mockVial, kb: mockVialKb }, 
+            Vial: { ...mockVial, kb: mockVialKb },
             KEY: mockKey,
-            fs: mockFs, 
+            fs: mockFs,
             runInitializers: () => {},
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
             process: {
@@ -88,6 +89,7 @@ describe('macros_list.js command tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
+        loadScriptInContext('lib/common/command-utils.js', sandbox);
         loadScriptInContext('lib/macro_list.js', sandbox);
     }
 
@@ -169,7 +171,7 @@ describe('macros_list.js command tests', () => {
         const outputPath = "macros_error.txt";
         const expectedFileErrorMessage = "Cannot write to disk";
         mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
-        
+
         await sandbox.global.runListMacros({ outputFile: outputPath });
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing macro list to file "${outputPath}": ${expectedFileErrorMessage}`)), "Error message for file write missing.");
