@@ -147,7 +147,7 @@ describe('edit_tapdance.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/edit_tapdance.js', sandbox);
+        loadScriptInContext('lib/tapdance_edit.js', sandbox);
     }
 
     beforeEach(() => {

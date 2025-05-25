@@ -1,10 +1,11 @@
-// test/test_delete_combo.js
+// test/test_edit_combo.js
 const { assert } = require('chai');
 const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
 
 const MAX_COMBO_SLOTS_IN_TEST = 16;
+const DEFAULT_COMBO_TERM = 50;
 const KC_NO_VALUE = 0x0000;
 
 function loadScriptInContext(scriptPath, context) {
@@ -13,7 +14,7 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-describe('delete_combo.js tests', () => {
+describe('edit_combo.js tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
@@ -25,8 +26,21 @@ describe('delete_combo.js tests', () => {
     let mockProcessExitCode;
 
     // Spies
+    let spyKeyParseCalls;
     let spyVialComboPushCalled;
     let mockKbinfoCombos;
+
+    // Mock implementation for KEY.parse
+    function mockKeyParseImplementation(keyDefStr) {
+        if (spyKeyParseCalls) spyKeyParseCalls.push(keyDefStr);
+        if (keyDefStr === "KC_INVALID") return undefined;
+        if (keyDefStr === "KC_NO") return KC_NO_VALUE;
+        let baseVal = 0;
+        for (let i = 0; i < keyDefStr.length; i++) { baseVal += keyDefStr.charCodeAt(i); }
+        if (keyDefStr.includes("LCTL")) baseVal += 0x1000;
+        if (keyDefStr.includes("LSFT")) baseVal += 0x2000;
+        return baseVal;
+    }
 
     function setupTestEnvironment(
         mockKbinfoInitial = {},
@@ -88,7 +102,8 @@ describe('delete_combo.js tests', () => {
             ...vialKbMethodOverrides
         };
 
-        mockKey = { parse: (str) => str === "KC_INVALID" ? undefined : 12345 };
+        spyKeyParseCalls = [];
+        mockKey = { parse: mockKeyParseImplementation };
 
         consoleLogOutput = [];
         consoleErrorOutput = [];
@@ -101,6 +116,8 @@ describe('delete_combo.js tests', () => {
             fs: {},
             runInitializers: () => {},
             MAX_COMBO_SLOTS_IN_LIB: MAX_COMBO_SLOTS_IN_TEST,
+            DEFAULT_COMBO_TERM: DEFAULT_COMBO_TERM,
+            MAX_COMBO_TRIGGER_KEYS: 4,
             KC_NO_VALUE: KC_NO_VALUE,
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
@@ -114,7 +131,7 @@ describe('delete_combo.js tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/delete_combo.js', sandbox);
+        loadScriptInContext('lib/combo_edit.js', sandbox);
     }
 
     beforeEach(() => {
@@ -123,76 +140,40 @@ describe('delete_combo.js tests', () => {
 
     // --- Happy Path Tests ---
 
-    it('should delete a combo successfully', async () => {
-        // Set up an initial combo to delete
-        const initialCombos = [
-            ["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"], // Combo at slot 0
+    it('should edit an existing combo successfully', async () => {
+        // Set up an initial combo in array format: [trigger1, trigger2, trigger3, trigger4, action]
+        const existingCombos = [
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
-        setupTestEnvironment({ combos: initialCombos });
+        setupTestEnvironment({ combos: existingCombos });
 
-        await sandbox.global.runDeleteCombo("0", {});
+        const newDefinition = "KC_A+KC_S KC_D";
+        await sandbox.global.runEditCombo("0", newDefinition, {});
 
+        assert.deepStrictEqual(spyKeyParseCalls, ["KC_A", "KC_S", "KC_D"]);
         assert.strictEqual(spyVialComboPushCalled, true);
 
-        // Check that the combo was cleared (set to all KC_NO)
-        assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
+        // Check that the combo was updated in the array format
+        assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_A", "KC_S", "KC_NO", "KC_NO", "KC_D"]);
 
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0 deleted successfully.")));
+        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0 updated successfully.")));
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
-    it('should delete combo with higher ID', async () => {
-        // Set up combos with one at slot 5
-        const initialCombos = [];
-        for (let i = 0; i < 6; i++) {
-            if (i === 5) {
-                initialCombos.push(["KC_X", "KC_Y", "KC_NO", "KC_NO", "KC_Z"]);
-            } else {
-                initialCombos.push(["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-            }
-        }
-        setupTestEnvironment({ combos: initialCombos });
-
-        await sandbox.global.runDeleteCombo("5", {});
-
-        assert.strictEqual(spyVialComboPushCalled, true);
-        assert.deepStrictEqual(mockKbinfoCombos[5], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 5 deleted successfully")));
-        assert.strictEqual(mockProcessExitCode, 0);
-    });
-
-    it('should delete combo at maximum valid ID', async () => {
-        const maxId = MAX_COMBO_SLOTS_IN_TEST - 1;
-        // Set up combos with one at the maximum slot
-        const initialCombos = [];
-        for (let i = 0; i < MAX_COMBO_SLOTS_IN_TEST; i++) {
-            if (i === maxId) {
-                initialCombos.push(["KC_X", "KC_Y", "KC_NO", "KC_NO", "KC_Z"]);
-            } else {
-                initialCombos.push(["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-            }
-        }
-        setupTestEnvironment({ combos: initialCombos });
-
-        await sandbox.global.runDeleteCombo(maxId.toString(), {});
-
-        assert.strictEqual(spyVialComboPushCalled, true);
-        assert.deepStrictEqual(mockKbinfoCombos[maxId], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo ${maxId} deleted successfully`)));
-        assert.strictEqual(mockProcessExitCode, 0);
-    });
+    // Note: Term functionality has been removed from the new implementation
+    // These tests are no longer relevant as combos don't use terms anymore
 
     // --- Sad Path Tests ---
 
     it('should error with invalid combo ID (non-numeric)', async () => {
-        await sandbox.global.runDeleteCombo("abc", {});
+        await sandbox.global.runEditCombo("abc", "KC_A+KC_S KC_D", {});
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid combo ID "abc". ID must be a non-negative integer.')));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should error with invalid combo ID (negative)', async () => {
-        await sandbox.global.runDeleteCombo("-1", {});
+        await sandbox.global.runEditCombo("-1", "KC_A+KC_S KC_D", {});
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid combo ID "-1". ID must be a non-negative integer.')));
         assert.strictEqual(mockProcessExitCode, 1);
@@ -200,17 +181,71 @@ describe('delete_combo.js tests', () => {
 
     it('should error with out-of-range combo ID', async () => {
         const outOfRangeId = MAX_COMBO_SLOTS_IN_TEST;
-        await sandbox.global.runDeleteCombo(outOfRangeId.toString(), {});
+        await sandbox.global.runEditCombo(outOfRangeId.toString(), "KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Combo ID ${outOfRangeId} is out of range. Maximum combo ID is ${MAX_COMBO_SLOTS_IN_TEST - 1}.`)));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Combo ID ${outOfRangeId} is out of range`)));
         assert.strictEqual(mockProcessExitCode, 1);
     });
+
+    it('should error with invalid combo definition (missing action key)', async () => {
+        const existingCombos = [
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
+        ];
+        setupTestEnvironment({ combos: existingCombos });
+
+        await sandbox.global.runEditCombo("0", "KC_A+KC_S", {});
+
+        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing new combo definition: Invalid combo definition string.')));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should error with invalid combo definition (no trigger keys)', async () => {
+        const existingCombos = [
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
+        ];
+        setupTestEnvironment({ combos: existingCombos });
+
+        await sandbox.global.runEditCombo("0", " KC_D", {});
+
+        assert.isTrue(consoleErrorOutput.some(line =>
+            line.includes('Error parsing new combo definition: No trigger keys specified in combo definition.') ||
+            line.includes('Error parsing new combo definition: Invalid combo definition string.')
+        ));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should error with invalid trigger key', async () => {
+        const existingCombos = [
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
+        ];
+        setupTestEnvironment({ combos: existingCombos });
+
+        await sandbox.global.runEditCombo("0", "KC_INVALID+KC_S KC_D", {});
+
+        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing new combo definition: Invalid or KC_NO trigger key: "KC_INVALID"')));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should error with invalid action key', async () => {
+        const existingCombos = [
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
+        ];
+        setupTestEnvironment({ combos: existingCombos });
+
+        await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_INVALID", {});
+
+        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing new combo definition: Invalid action key: "KC_INVALID"')));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    // Note: Term functionality has been removed from the new implementation
+    // Term-related tests are no longer relevant
 
     it('should error if no compatible device is found', async () => {
         setupTestEnvironment();
         mockUsb.list = () => [];
 
-        await sandbox.global.runDeleteCombo("0", {});
+        await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", {});
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
         assert.strictEqual(mockProcessExitCode, 1);
@@ -220,7 +255,7 @@ describe('delete_combo.js tests', () => {
         setupTestEnvironment();
         mockUsb.open = async () => false;
 
-        await sandbox.global.runDeleteCombo("0", {});
+        await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", {});
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
         assert.strictEqual(mockProcessExitCode, 1);
@@ -243,12 +278,12 @@ describe('delete_combo.js tests', () => {
             },
             global: {}
         });
-        loadScriptInContext('lib/delete_combo.js', sandbox);
+        loadScriptInContext('lib/combo_edit.js', sandbox);
 
         // Check if the function was exposed despite missing objects
-        if (sandbox.global.runDeleteCombo) {
+        if (sandbox.global.runEditCombo) {
             try {
-                await sandbox.global.runDeleteCombo("0", {});
+                await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", {});
                 assert.isTrue(
                     consoleErrorOutput.some(line => line.includes("Error: Required objects not found in sandbox.")) ||
                     mockProcessExitCode === 1
@@ -259,65 +294,43 @@ describe('delete_combo.js tests', () => {
             }
         } else {
             // If function wasn't exposed, that's also a valid way to handle missing dependencies
-            assert.isUndefined(sandbox.global.runDeleteCombo);
+            assert.isUndefined(sandbox.global.runEditCombo);
         }
     });
 
     it('should error if Vial.combo.push function is not available', async () => {
-        setupTestEnvironment({}, {}, { push: undefined });
+        const existingCombos = [
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
+        ];
+        setupTestEnvironment({ combos: existingCombos }, {}, { push: undefined });
 
-        await sandbox.global.runDeleteCombo("0", {});
+        await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.combo.push function is not available. Cannot delete combo.")));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.combo.push function is not available. Cannot edit combo.")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.combo.push', async () => {
-        // Set up an initial combo to delete
-        const initialCombos = [
-            ["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"], // Combo at slot 0
+        const existingCombos = [
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
-        setupTestEnvironment({ combos: initialCombos }, {}, { push: async () => { throw new Error("Simulated Push Error"); } });
+        setupTestEnvironment({ combos: existingCombos }, {}, { push: async () => { throw new Error("Simulated Push Error"); } });
 
-        await sandbox.global.runDeleteCombo("0", {});
+        await sandbox.global.runEditCombo("0", "KC_A+KC_S KC_D", {});
 
         assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
-    it('should handle floating point combo ID', async () => {
-        // Set up combos with one at slot 1
-        const initialCombos = [
-            ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"], // Slot 0
-            ["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"], // Slot 1
+    it('should handle too many trigger keys', async () => {
+        const existingCombos = [
+            ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"], // Combo at slot 0
         ];
-        setupTestEnvironment({ combos: initialCombos });
+        setupTestEnvironment({ combos: existingCombos });
 
-        await sandbox.global.runDeleteCombo("1.5", {});
+        await sandbox.global.runEditCombo("0", "KC_A+KC_B+KC_C+KC_D+KC_E KC_F", {});
 
-        // parseInt("1.5", 10) returns 1, so this should succeed with ID 1
-        assert.strictEqual(spyVialComboPushCalled, true);
-        assert.deepStrictEqual(mockKbinfoCombos[1], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-        assert.strictEqual(mockProcessExitCode, 0);
-    });
-
-    it('should handle combo ID with leading zeros', async () => {
-        // Set up combos with one at slot 7
-        const initialCombos = [];
-        for (let i = 0; i < 8; i++) {
-            if (i === 7) {
-                initialCombos.push(["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"]);
-            } else {
-                initialCombos.push(["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-            }
-        }
-        setupTestEnvironment({ combos: initialCombos });
-
-        await sandbox.global.runDeleteCombo("007", {});
-
-        // parseInt("007", 10) returns 7
-        assert.strictEqual(spyVialComboPushCalled, true);
-        assert.deepStrictEqual(mockKbinfoCombos[7], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing new combo definition: Too many trigger keys. Maximum is 4. Found: 5')));
+        assert.strictEqual(mockProcessExitCode, 1);
     });
 });

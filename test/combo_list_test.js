@@ -105,7 +105,7 @@ describe('list_combos.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/list_combos.js', sandbox);
+        loadScriptInContext('lib/combo_list.js', sandbox);
     }
 
     beforeEach(() => {

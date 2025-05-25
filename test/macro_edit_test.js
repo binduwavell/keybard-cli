@@ -132,7 +132,7 @@ describe('edit_macro.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/edit_macro.js', sandbox);
+        loadScriptInContext('lib/macro_edit.js', sandbox);
     }
 
     beforeEach(() => {

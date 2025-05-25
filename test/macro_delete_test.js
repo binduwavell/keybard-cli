@@ -111,7 +111,7 @@ describe('delete_macro.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/delete_macro.js', sandbox);
+        loadScriptInContext('lib/macro_delete.js', sandbox);
     }
 
     beforeEach(() => {

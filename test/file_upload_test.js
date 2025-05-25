@@ -258,7 +258,7 @@ describe('upload_file.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/upload_file.js', sandbox);
+        loadScriptInContext('lib/file_upload.js', sandbox);
     }
 
     beforeEach(() => {
@@ -338,7 +338,7 @@ describe('upload_file.js library tests', () => {
         });
 
         try {
-            loadScriptInContext('lib/upload_file.js', sandbox);
+            loadScriptInContext('lib/file_upload.js', sandbox);
 
             if (sandbox.global.runUploadFile) {
                 try {

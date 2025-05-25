@@ -92,7 +92,7 @@ describe('get_keymap.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/get_keymap.js', sandbox);
+        loadScriptInContext('lib/keymap_get.js', sandbox);
     }
 
     beforeEach(() => {

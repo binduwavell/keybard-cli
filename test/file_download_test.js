@@ -112,7 +112,7 @@ describe('download_file.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/download_file.js', sandbox);
+        loadScriptInContext('lib/file_download.js', sandbox);
     }
 
     beforeEach(() => {

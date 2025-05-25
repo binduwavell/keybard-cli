@@ -88,7 +88,7 @@ describe('list_macros.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/list_macros.js', sandbox);
+        loadScriptInContext('lib/macro_list.js', sandbox);
     }
 
     beforeEach(() => {

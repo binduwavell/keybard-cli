@@ -87,7 +87,7 @@ describe('get_macro.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/get_macro.js', sandbox);
+        loadScriptInContext('lib/macro_get.js', sandbox);
     }
 
     beforeEach(() => {

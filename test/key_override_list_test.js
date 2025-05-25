@@ -93,7 +93,7 @@ describe('list_key_overrides.js tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/list_key_overrides.js', sandbox);
+        loadScriptInContext('lib/key_override_list.js', sandbox);
     }
 
     beforeEach(() => {
@@ -298,7 +298,7 @@ describe('list_key_overrides.js tests', () => {
             },
             global: {}
         });
-        loadScriptInContext('lib/list_key_overrides.js', sandbox);
+        loadScriptInContext('lib/key_override_list.js', sandbox);
 
         // Check if the function was exposed despite missing objects
         if (sandbox.global.runListKeyOverrides) {

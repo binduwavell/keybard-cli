@@ -46,7 +46,7 @@ describe('get_keyboard_info.js tests', () => {
             },
             global: {},
         });
-        loadScriptInContext('lib/get_keyboard_info.js', sandbox);
+        loadScriptInContext('lib/keyboard_info_get.js', sandbox);
     }
 
     beforeEach(() => {

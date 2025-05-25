@@ -125,7 +125,7 @@ describe('add_combo.js tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/add_combo.js', sandbox);
+        loadScriptInContext('lib/combo_add.js', sandbox);
     }
 
     beforeEach(() => {
@@ -322,7 +322,7 @@ describe('add_combo.js tests', () => {
             },
             global: {}
         });
-        loadScriptInContext('lib/add_combo.js', sandbox);
+        loadScriptInContext('lib/combo_add.js', sandbox);
 
         // Check if the function was exposed despite missing objects
         if (sandbox.global.runAddCombo) {

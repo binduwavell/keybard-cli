@@ -81,7 +81,7 @@ describe('upload_keymap.js library tests', () => {
                 spyFsReadFileSyncPath = filepath;
                 // This function will be overridden by tests that need specific file content
                 if (filepath.endsWith('upload_keymap.js')) { // Allow reading the lib itself
-                    return fs.readFileSync(path.resolve(__dirname, '..', 'lib/upload_keymap.js'), 'utf8');
+                    return fs.readFileSync(path.resolve(__dirname, '..', 'lib/keymap_upload.js'), 'utf8');
                 }
                 throw new Error(`mockFs.readFileSync: Path not mocked by specific test: ${filepath}`);
             }
@@ -107,7 +107,7 @@ describe('upload_keymap.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/upload_keymap.js', sandbox);
+        loadScriptInContext('lib/keymap_upload.js', sandbox);
     }
 
     beforeEach(() => {

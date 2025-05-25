@@ -123,7 +123,7 @@ describe('delete_key_override.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/delete_key_override.js', sandbox);
+        loadScriptInContext('lib/key_override_delete.js', sandbox);
     }
 
     beforeEach(() => {

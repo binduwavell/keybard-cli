@@ -119,7 +119,7 @@ describe('add_macro.js tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/add_macro.js', sandbox);
+        loadScriptInContext('lib/macro_add.js', sandbox);
     }
 
     beforeEach(() => {
@@ -298,7 +298,7 @@ describe('add_macro.js tests', () => {
             },
             global: {}
         });
-        loadScriptInContext('lib/add_macro.js', sandbox);
+        loadScriptInContext('lib/macro_add.js', sandbox);
 
         // Check if the function was exposed despite missing objects
         if (sandbox.global.runAddMacro) {

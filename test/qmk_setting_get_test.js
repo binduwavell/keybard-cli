@@ -81,7 +81,7 @@ describe('get_qmk_setting.js library tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/get_qmk_setting.js', sandbox);
+        loadScriptInContext('lib/qmk_setting_get.js', sandbox);
     }
 
     beforeEach(() => {

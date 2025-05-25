@@ -118,7 +118,7 @@ describe('add_key_override.js tests', () => {
                 set exitCode(val) { mockProcessExitCode = val; }
             }
         });
-        loadScriptInContext('lib/add_key_override.js', sandbox);
+        loadScriptInContext('lib/key_override_add.js', sandbox);
     }
 
     beforeEach(() => {
