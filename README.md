@@ -66,29 +66,509 @@ Once installed, you can use the `keybard-cli` executable (or `node keybard-cli.j
 
 ## Available Commands
 
+KeyBard CLI provides comprehensive control over your keyboard through several command groups. Each command group manages a specific aspect of your keyboard configuration.
+
+### Common Options
+
+Many commands support these common options:
+- `-f, --format <format>`: Specify output format (`json` or `text`, default: varies by command)
+- `-o, --output <filepath>`: Specify output file for saving data
+- `-l, --layer <number>`: Specify layer number (for keymap operations)
+
+---
+
+## Keyboard Commands
+
+The `keyboard` command group handles device detection, keymap operations, and file uploads/downloads.
+
 ### `keyboard devices`
 
-The `keyboard devices` command scans for and displays a list of all connected USB devices that are compatible with KeyBard.
+List all connected USB HID devices compatible with Vial.
 
 **Usage:**
-
 ```bash
 ./keybard-cli.js keyboard devices
 ```
 
-This is useful to verify that your Svalboard or other compatible keyboard is recognized by the system and the KeyBard CLI.
-
 ### `keyboard info`
 
-The `keyboard info` command connects to the first available KeyBard-compatible device, extracts its current configuration (including keymaps, macros, and other settings), and displays this information in a structured format.
+Pull all available information from the connected keyboard.
 
 **Usage:**
-
 ```bash
 ./keybard-cli.js keyboard info
+./keybard-cli.js keyboard info -o keyboard_info.json
 ```
 
-This command is useful for inspecting the configuration data of the keyboard, for debugging, or for backing up the configuration. You can also save the output to a file using the `-o` option.
+**Options:**
+- `-o, --output <filepath>`: Save keyboard information to JSON file
+
+### `keyboard get-keymap`
+
+View keymap, optionally for a specific layer, with configurable output format.
+
+**Usage:**
+```bash
+./keybard-cli.js keyboard get-keymap
+./keybard-cli.js keyboard get-keymap -l 1 -f text
+./keybard-cli.js keyboard get-keymap -o keymap.json
+```
+
+**Options:**
+- `-l, --layer <number>`: Specify layer number to retrieve
+- `-f, --format <format>`: Output format (`json` or `text`, default: `json`)
+- `-o, --output <filepath>`: Save keymap data to file
+
+### `keyboard set-keymap`
+
+Set a specific key on the keymap at a given position index.
+
+**Usage:**
+```bash
+./keybard-cli.js keyboard set-keymap KC_A 0
+./keybard-cli.js keyboard set-keymap KC_ESC 5 -l 1
+```
+
+**Arguments:**
+- `<key_definition>`: Key code (e.g., `KC_A`, `KC_ESC`, `KC_LCTL`)
+- `<position_index>`: Position index on the keyboard
+
+**Options:**
+- `-l, --layer <number>`: Specify layer number (default: 0)
+
+### `keyboard upload-keymap`
+
+Load a full keymap from a JSON file and apply it to the keyboard.
+
+**Usage:**
+```bash
+./keybard-cli.js keyboard upload-keymap keymap.json
+```
+
+**Arguments:**
+- `<filepath_json>`: Path to JSON file containing keymap data
+
+### `keyboard download-keymap`
+
+Save the current keyboard keymap to a file in JSON format.
+
+**Usage:**
+```bash
+./keybard-cli.js keyboard download-keymap my_keymap.json
+```
+
+**Arguments:**
+- `<filepath_json>`: Output file path for JSON keymap
+
+### `keyboard upload`
+
+Upload and apply a .vil (Vial keymap) or .svl (Svalboard/KeyBard full config) file to the keyboard.
+
+**Usage:**
+```bash
+./keybard-cli.js keyboard upload config.svl
+./keybard-cli.js keyboard upload keymap.vil
+```
+
+**Arguments:**
+- `<filepath>`: Path to .vil or .svl file
+
+**Supported file types:** .vil, .svl
+
+### `keyboard download`
+
+Download the current keyboard configuration (keymap, macros, overrides, settings) to an .svl file.
+
+**Usage:**
+```bash
+./keybard-cli.js keyboard download backup.svl
+```
+
+**Arguments:**
+- `<filepath>`: Output file path (must have .svl extension)
+
+---
+
+## Macro Commands
+
+The `macro` command group manages keyboard macros.
+
+### `macro list`
+
+List all macros from the keyboard.
+
+**Usage:**
+```bash
+./keybard-cli.js macro list
+./keybard-cli.js macro list -f json -o macros.json
+```
+
+**Options:**
+- `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
+- `-o, --output <filepath>`: Save macro list to file
+
+### `macro get`
+
+View a specific macro by its ID.
+
+**Usage:**
+```bash
+./keybard-cli.js macro get 0
+./keybard-cli.js macro get 2 -f json
+```
+
+**Arguments:**
+- `<id>`: Macro ID number
+
+**Options:**
+- `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
+- `-o, --output <filepath>`: Save macro data to file
+
+### `macro add`
+
+Add a new macro with a sequence definition string.
+
+**Usage:**
+```bash
+./keybard-cli.js macro add "KC_H,KC_E,KC_L,KC_L,KC_O"
+./keybard-cli.js macro add "KC_LCTL,KC_C,DELAY(100),KC_LCTL,KC_V"
+./keybard-cli.js macro add "TAP(KC_A),DOWN(KC_LSHIFT),TAP(KC_B),UP(KC_LSHIFT)"
+./keybard-cli.js macro add "TEXT(Hello World!),KC_ENTER"
+```
+
+**Arguments:**
+- `<sequence_definition>`: Comma-separated sequence of actions
+
+**Sequence Definition Syntax:**
+- **Basic keys:** `KC_A`, `KC_B`, `KC_ENTER`, etc.
+- **Key actions:** `TAP(KC_A)`, `DOWN(KC_LSHIFT)`, `UP(KC_LSHIFT)`
+- **Delays:** `DELAY(100)` (milliseconds)
+- **Text:** `TEXT(Hello World!)` (types literal text)
+- **Modifiers:** `KC_LCTL`, `KC_LSHIFT`, `KC_LALT`, `KC_LGUI`
+
+### `macro edit`
+
+Edit an existing macro by its ID with a new sequence definition.
+
+**Usage:**
+```bash
+./keybard-cli.js macro edit 0 "KC_H,KC_I"
+./keybard-cli.js macro edit 1 "KC_LCTL,KC_A,DELAY(50),KC_LCTL,KC_C"
+```
+
+**Arguments:**
+- `<id>`: Macro ID to edit
+- `<new_sequence_definition>`: New sequence (same syntax as `macro add`)
+
+### `macro delete`
+
+Delete a macro by its ID (clears its actions).
+
+**Usage:**
+```bash
+./keybard-cli.js macro delete 0
+```
+
+**Arguments:**
+- `<id>`: Macro ID to delete
+
+---
+
+## Tapdance Commands
+
+The `tapdance` command group manages tap dance functionality.
+
+### `tapdance list`
+
+List all tapdances from the keyboard.
+
+**Usage:**
+```bash
+./keybard-cli.js tapdance list
+./keybard-cli.js tapdance list -f json
+```
+
+**Options:**
+- `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
+- `-o, --output <filepath>`: Save tapdance list to file
+
+### `tapdance get`
+
+View a specific tapdance by its ID.
+
+**Usage:**
+```bash
+./keybard-cli.js tapdance get 0
+```
+
+**Arguments:**
+- `<id>`: Tapdance ID number
+
+**Options:**
+- `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
+- `-o, --output <filepath>`: Save tapdance data to file
+
+### `tapdance add`
+
+Add a new tapdance with a sequence definition string.
+
+**Usage:**
+```bash
+./keybard-cli.js tapdance add "TAP(KC_A),HOLD(KC_B)"
+./keybard-cli.js tapdance add "TAP(KC_ESC),DOUBLE(KC_CAPS),TERM(150)"
+./keybard-cli.js tapdance add "TAP(KC_SPACE),HOLD(KC_LSHIFT),TAPHOLD(KC_ENTER)"
+```
+
+**Arguments:**
+- `<sequence_definition>`: Comma-separated sequence of tapdance actions
+
+**Sequence Definition Syntax:**
+- **TAP(key):** Action on single tap
+- **HOLD(key):** Action on hold
+- **DOUBLE(key):** Action on double tap
+- **TAPHOLD(key):** Action on tap-and-hold
+- **TERM(ms):** Tapping term in milliseconds (default: 200)
+
+### `tapdance edit`
+
+Edit an existing tapdance by its ID with a new sequence definition.
+
+**Usage:**
+```bash
+./keybard-cli.js tapdance edit 0 "TAP(KC_X),HOLD(KC_Y),TERM(250)"
+```
+
+**Arguments:**
+- `<id>`: Tapdance ID to edit
+- `<new_sequence_definition>`: New sequence (same syntax as `tapdance add`)
+
+### `tapdance delete`
+
+Delete a tapdance by its ID (clears its actions and sets term to 0).
+
+**Usage:**
+```bash
+./keybard-cli.js tapdance delete 0
+```
+
+**Arguments:**
+- `<id>`: Tapdance ID to delete
+
+---
+
+## Combo Commands
+
+The `combo` command group manages key combinations.
+
+### `combo list`
+
+List all combos from the keyboard.
+
+**Usage:**
+```bash
+./keybard-cli.js combo list
+./keybard-cli.js combo list -f json
+```
+
+**Options:**
+- `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
+- `-o, --output <filepath>`: Save combo list to file
+
+### `combo get`
+
+View a specific combo by its ID.
+
+**Usage:**
+```bash
+./keybard-cli.js combo get 0
+```
+
+**Arguments:**
+- `<id>`: Combo ID number
+
+**Options:**
+- `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
+- `-o, --output <filepath>`: Save combo data to file
+
+### `combo add`
+
+Add a new combo with trigger keys and action key.
+
+**Usage:**
+```bash
+./keybard-cli.js combo add "KC_A+KC_S KC_D"
+./keybard-cli.js combo add "KC_J+KC_K KC_ESC" -t 50
+./keybard-cli.js combo add "KC_Q+KC_W+KC_E KC_TAB"
+```
+
+**Arguments:**
+- `<definition_string>`: Trigger keys separated by "+", then space, then action key
+
+**Options:**
+- `-t, --term <milliseconds>`: Set combo term/timeout in milliseconds
+
+**Definition String Format:**
+- Format: `"TRIGGER_KEY1+TRIGGER_KEY2+... ACTION_KEY"`
+- Example: `"KC_A+KC_S KC_D"` (pressing A+S together triggers D)
+
+### `combo edit`
+
+Edit an existing combo by its ID.
+
+**Usage:**
+```bash
+./keybard-cli.js combo edit 0 "KC_X+KC_Y KC_Z"
+./keybard-cli.js combo edit 1 "KC_F+KC_G KC_H" -t 75
+```
+
+**Arguments:**
+- `<id>`: Combo ID to edit
+- `<new_definition_string>`: New combo definition (same format as `combo add`)
+
+**Options:**
+- `-t, --term <milliseconds>`: Set new combo term/timeout in milliseconds
+
+### `combo delete`
+
+Delete a combo by its ID (disables it and clears keys/term).
+
+**Usage:**
+```bash
+./keybard-cli.js combo delete 0
+```
+
+**Arguments:**
+- `<id>`: Combo ID to delete
+
+---
+
+## Key Override Commands
+
+The `key-override` command group manages key behavior overrides.
+
+### `key-override list`
+
+List all key overrides from the keyboard.
+
+**Usage:**
+```bash
+./keybard-cli.js key-override list
+./keybard-cli.js key-override list -f json
+```
+
+**Options:**
+- `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
+- `-o, --output <filepath>`: Save key override list to file
+
+### `key-override get`
+
+View a specific key override by its ID/index.
+
+**Usage:**
+```bash
+./keybard-cli.js key-override get 0
+```
+
+**Arguments:**
+- `<id>`: Key override ID/index number
+
+**Options:**
+- `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
+- `-o, --output <filepath>`: Save key override data to file
+
+### `key-override add`
+
+Add a new key override to make one key behave as another.
+
+**Usage:**
+```bash
+./keybard-cli.js key-override add KC_A KC_B
+./keybard-cli.js key-override add KC_CAPS KC_ESC
+```
+
+**Arguments:**
+- `<trigger_key_string>`: Key that triggers the override
+- `<override_key_string>`: Key behavior to apply
+
+**Example:** `KC_A KC_B` makes the A key behave as the B key
+
+### `key-override edit`
+
+Edit an existing key override by ID.
+
+**Usage:**
+```bash
+./keybard-cli.js key-override edit 0 KC_B KC_C
+```
+
+**Arguments:**
+- `<id>`: Key override ID to edit
+- `<new_trigger_key_string>`: New trigger key
+- `<new_override_key_string>`: New override behavior
+
+### `key-override delete`
+
+Delete a key override by its ID (sets its keys to 0).
+
+**Usage:**
+```bash
+./keybard-cli.js key-override delete 0
+```
+
+**Arguments:**
+- `<id>`: Key override ID to delete
+
+---
+
+## QMK Setting Commands
+
+The `qmk-setting` command group manages QMK firmware settings.
+
+### `qmk-setting list`
+
+List all available QMK settings and their current values from the keyboard.
+
+**Usage:**
+```bash
+./keybard-cli.js qmk-setting list
+./keybard-cli.js qmk-setting list -o settings.json
+```
+
+**Options:**
+- `-o, --output-file <filepath>`: Save settings as JSON to a file
+
+### `qmk-setting get`
+
+View a specific QMK setting by its name from the keyboard.
+
+**Usage:**
+```bash
+./keybard-cli.js qmk-setting get TapToggleEnable
+./keybard-cli.js qmk-setting get MaxTapTime
+```
+
+**Arguments:**
+- `<setting_name>`: Name of the QMK setting
+
+### `qmk-setting set`
+
+Change a QMK setting on the keyboard by its name and new value.
+
+**Usage:**
+```bash
+./keybard-cli.js qmk-setting set TapToggleEnable true
+./keybard-cli.js qmk-setting set MaxTapTime 200
+./keybard-cli.js qmk-setting set UserFullName "John Doe"
+```
+
+**Arguments:**
+- `<setting_name>`: Name of the QMK setting
+- `<value>`: New value for the setting
+
+**Examples:**
+- Boolean settings: `true`, `false`
+- Numeric settings: `200`, `150`
+- String settings: `"John Doe"` (use quotes for strings with spaces)
 
 ## Contributing
 
