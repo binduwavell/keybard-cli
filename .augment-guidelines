@@ -1,6 +1,9 @@
 # CLI Command Structure
 - User prefers CLI command structure where resource comes first followed by action (e.g., 'combo get' instead of 'get combo') to enable better command grouping with subcommands.
 
+# CLI Command Development
+- Avoid using require() in command files that are loaded into VM sandbox contexts - instead perform requirements in cli.js and add them to the sandbox object.
+
 # CLI Testing
 - All cli code should be accompanied by corresponding unit tests.
 - User prefers testing CLI commands directly with mocks rather than using execSync, as it's more reliable and allows better control over test conditions.
