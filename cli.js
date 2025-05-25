@@ -136,11 +136,14 @@ keyboardCmd
     sandbox.global.runDownloadKeymap(filepathJson);
   });
 
-// File command group
-const fileCmd = program.command('file');
-fileCmd.description('File upload and download operations');
+keyboardCmd
+  .command('devices')
+  .description('List connected USB HID devices compatible with Vial.')
+  .action(() => {
+    vm.runInContext('USB.list();', sandbox);
+  });
 
-fileCmd
+keyboardCmd
   .command('upload <filepath>')
   .description('Upload and apply a .vil (Vial keymap) or .svl (Svalboard/KeyBard full config) file to the keyboard.')
   .addHelpText('after', '\nSupported file types: .vil, .svl')
@@ -152,7 +155,7 @@ fileCmd
     sandbox.global.runUploadFile(filepath, options);
   });
 
-fileCmd
+keyboardCmd
   .command('download <filepath>')
   .description('Download the current keyboard configuration (keymap, macros, overrides, settings) to an .svl file.')
   .addHelpText('after', '\nOutput file must have an .svl extension.')
@@ -163,6 +166,8 @@ fileCmd
     // process.exitCode will be set by runDownloadFile itself.
     sandbox.global.runDownloadFile(filepath, options);
   });
+
+
 
 // Macro command group
 const macroCmd = program.command('macro');
@@ -483,14 +488,6 @@ qmkSettingCmd
     // The script exposes runSetQmkSetting on the global object in the sandbox
     // process.exitCode will be set by runSetQmkSetting itself.
     sandbox.global.runSetQmkSetting(settingName, value, options);
-  });
-
-// Devices command
-program
-  .command('devices')
-  .description('List connected USB HID devices compatible with Vial.')
-  .action(() => {
-    vm.runInContext('USB.list();', sandbox);
   });
 
 program.parse(process.argv);

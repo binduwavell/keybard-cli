@@ -38,5 +38,5 @@ This file lists planned command-line interface (CLI) commands for KeyBard CLI, b
 *   [x] `keybard-cli list qmk-settings`: List all available QMK settings and their current values.
 *   [x] `keybard-cli get qmk-setting <setting_name>`: View a specific QMK setting.
 *   [x] `keybard-cli set qmk-setting <setting_name> <value>`: Change a QMK setting.
-*   [x] `keybard-cli upload file <filepath.vil | filepath.svl>`: Upload and apply a `.vil` (Vial keymap) or `.svl` (Svalboard/KeyBard keymap) file to the keyboard.
-*   [x] `keybard-cli download file <filepath.svl>`: Download the current keyboard configuration to an `.svl` file.
+*   [x] `keybard-cli keyboard upload <filepath.vil | filepath.svl>`: Upload and apply a `.vil` (Vial keymap) or `.svl` (Svalboard/KeyBard keymap) file to the keyboard.
+*   [x] `keybard-cli keyboard download <filepath.svl>`: Download the current keyboard configuration to an `.svl` file.

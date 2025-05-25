@@ -55,40 +55,40 @@ Once installed, you can use the `keybard-cli` executable (or `node keybard-cli.j
 **List connected devices:**
 
 ```bash
-./keybard-cli.js list
+./keybard-cli.js keyboard devices
 ```
 
-**Dump keyboard configuration:**
+**Get keyboard information:**
 
 ```bash
-./keybard-cli.js dump
+./keybard-cli.js keyboard info
 ```
 
 ## Available Commands
 
-### `list`
+### `keyboard devices`
 
-The `list` command scans for and displays a list of all connected USB devices that are compatible with KeyBard.
+The `keyboard devices` command scans for and displays a list of all connected USB devices that are compatible with KeyBard.
 
 **Usage:**
 
 ```bash
-./keybard-cli.js list
+./keybard-cli.js keyboard devices
 ```
 
 This is useful to verify that your Svalboard or other compatible keyboard is recognized by the system and the KeyBard CLI.
 
-### `dump`
+### `keyboard info`
 
-The `dump` command connects to the first available KeyBard-compatible device, extracts its current configuration (including keymaps, macros, and other settings), and prints this data to the console in a raw format.
+The `keyboard info` command connects to the first available KeyBard-compatible device, extracts its current configuration (including keymaps, macros, and other settings), and displays this information in a structured format.
 
 **Usage:**
 
 ```bash
-./keybard-cli.js dump
+./keybard-cli.js keyboard info
 ```
 
-This command is primarily useful for inspecting the raw configuration data of the keyboard, for debugging, or for backing up the configuration in a human-readable (though verbose) format.
+This command is useful for inspecting the configuration data of the keyboard, for debugging, or for backing up the configuration. You can also save the output to a file using the `-o` option.
 
 ## Contributing
 
