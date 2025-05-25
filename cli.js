@@ -34,6 +34,10 @@ const sandbox = {
 }
 vm.createContext(sandbox);
 
+// Add debug library to the sandbox for debugging within sandboxed scripts
+// Must be added before loading files that use it
+sandbox.debug = require('debug');
+
 const files = [
     'keybard/pages/js/util.js',
     'keybard/pages/js/usbutil.js',
