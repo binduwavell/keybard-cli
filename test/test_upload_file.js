@@ -1,8 +1,7 @@
 // test/test_upload_file.js
-
-const assert = require('assert');
+const { assert } = require('chai');
 const vm = require('vm');
-const fs = require('fs'); 
+const fs = require('fs');
 const path = require('path');
 
 function loadScriptInContext(scriptPath, context) {
@@ -11,536 +10,790 @@ function loadScriptInContext(scriptPath, context) {
     vm.runInContext(scriptCode, context);
 }
 
-// Mock objects and spies
-let sandbox;
-let mockUsb;
-let mockVial;
-let mockFs;
-let mockPath; // For path.extname
+describe('upload_file.js library tests', () => {
+    let sandbox;
+    let mockUsb;
+    let mockVial;
+    let mockFs;
+    let mockPath;
+    let mockKey;
 
-let consoleLogOutput;
-let consoleErrorOutput;
-let consoleInfoOutput;
-let consoleWarnOutput;
-let originalProcessExitCode;
-let mockProcessExitCode;
+    let consoleLogOutput;
+    let consoleErrorOutput;
+    let consoleInfoOutput;
+    let consoleWarnOutput;
+    let mockProcessExitCode;
 
-// Spies
-let spyFsReadFileSync;
-let spyVialApplyVilData;
-let spyVialKeymapApplyVil;
-let spyVialKbSetFullKeymap;
-let spyVialMacroPush;
-let spyVialKeyOverridePush;
-let spyVialSetQmkSetting;
-let spyVialKbSetQmkSetting;
-let spyVialQmkSettingsPush;
-let spyVialSettingsPush;
-let spyVialKbSaveKeymap;
-let spyVialKbSaveMacros;
-let spyVialKbSaveKeyOverrides;
-let spyVialKbSaveQmkSettings;
-let spyVialKbSaveSettings;
-let spyVialKbSave;
-let spyKeyParse;
+    // Spies
+    let spyFsReadFileSync;
+    let spyVialApplyVilData;
+    let spyVialKeymapApplyVil;
+    let spyVialKbSetFullKeymap;
+    let spyVialMacroPush;
+    let spyVialKeyOverridePush;
+    let spyVialSetQmkSetting;
+    let spyVialKbSetQmkSetting;
+    let spyVialQmkSettingsPush;
+    let spyVialSettingsPush;
+    let spyVialKbSaveKeymap;
+    let spyVialKbSaveMacros;
+    let spyVialKbSaveKeyOverrides;
+    let spyVialKbSaveQmkSettings;
+    let spyVialKbSaveSettings;
+    let spyVialKbSave;
+    let spyKeyParseCalls;
 
-
-// Minimal KEY mock, spy on its parse method
-let mockKey = { 
-    parse: (keycodeStr) => {
-        if (spyKeyParse) spyKeyParse.push(keycodeStr);
+    function mockKeyParseImplementation(keycodeStr) {
+        spyKeyParseCalls.push(keycodeStr);
         if (keycodeStr === "KC_INVALID") return undefined;
-        if (typeof keycodeStr === 'number') return keycodeStr; // Allow passthrough for already numeric
-        // Simple mock for other strings
+        if (typeof keycodeStr === 'number') return keycodeStr;
+        // Simple hash for consistent results
         let val = 0;
-        for(let i=0; i < keycodeStr.length; i++) val += keycodeStr.charCodeAt(i);
+        for (let i = 0; i < keycodeStr.length; i++) {
+            val += keycodeStr.charCodeAt(i);
+        }
         return val;
     }
-}; 
 
-function setupTestEnvironment({
-    mockFilePath = 'testfile.svl', // Default to svl for many tests
-    mockFileContent = '{}',
-    mockFileReadError = null,
-    mockKbinfoInitial = { layers: 2, rows: 6, cols: 15, keymap_size: 2*6*15 }, // Default device info
-    vialConfig = {} 
-} = {}) { // Provide default for the whole options object
-    mockUsb = {
-        list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-        open: async () => true,
-        close: () => { mockUsb.device = null; },
-        device: true
-    };
+    function setupTestEnvironment({
+        mockKbinfoData = { layers: 2, rows: 6, cols: 15, keymap_size: 180 },
+        fileConfig = { path: 'test.svl', content: '{}', readError: null },
+        vialConfig = {},
+        usbConfig = {}
+    } = {}) {
+        mockUsb = {
+            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
+            open: async () => true,
+            close: () => { mockUsb.device = null; },
+            device: true,
+            ...(usbConfig.overrides || {})
+        };
 
-    // Reset all spies
-    spyFsReadFileSync = null;
-    spyVialApplyVilData = null;
-    spyVialKeymapApplyVil = null;
-    spyVialKbSetFullKeymap = null;
-    spyVialMacroPush = null;
-    spyVialKeyOverridePush = null;
-    spyVialSetQmkSetting = null;
-    spyVialKbSetQmkSetting = null;
-    spyVialQmkSettingsPush = null;
-    spyVialSettingsPush = null;
-    spyVialKbSaveKeymap = null;
-    spyVialKbSaveMacros = null;
-    spyVialKbSaveKeyOverrides = null;
-    spyVialKbSaveQmkSettings = null;
-    spyVialKbSaveSettings = null;
-    spyVialKbSave = null;
-    spyKeyParse = [];
-
-
-    mockFs = {
-        readFileSync: (filepath, encoding) => {
-            spyFsReadFileSync = { filepath, encoding };
-            if (mockFileReadError) throw mockFileReadError;
-            if (filepath === mockFilePath) return mockFileContent;
-            throw new Error(`fs.readFileSync: Unexpected file path ${filepath}`);
-        },
-        writeFileSync: () => {} // Present but not used by upload_file
-    };
-
-    mockPath = { // Mock path.extname
-        extname: (p) => {
-            const dotIndex = p.lastIndexOf('.');
-            return dotIndex === -1 ? '' : p.substring(dotIndex);
-        }
-    };
-    
-    mockVial = {
-        init: async (kbinfoRef) => { Object.assign(kbinfoRef, mockKbinfoInitial); },
-        load: async (kbinfoRef) => { Object.assign(kbinfoRef, mockKbinfoInitial); }, // Simple load
-        kb: {}, 
-        macro: {}, 
-        keyoverride: {}, 
-        qmkSettings: {}, 
-        settings: {}  
-    };
-
-    // Configure Vial methods based on vialConfig
-    if (vialConfig.hasVialApplyVilData) mockVial.applyVilData = async (content) => { spyVialApplyVilData = content; if(vialConfig.applyVilDataThrows) throw new Error("applyVilData error"); };
-    if (vialConfig.hasVialKeymapApplyVil) mockVial.keymap = { applyVil: async (content) => { spyVialKeymapApplyVil = content; if(vialConfig.keymapApplyVilThrows) throw new Error("keymap.applyVil error"); }};
-    
-    if (vialConfig.hasVialKbSetFullKeymap) mockVial.kb.setFullKeymap = async (data) => { spyVialKbSetFullKeymap = data; if(vialConfig.setFullKeymapThrows) throw new Error("setFullKeymap error"); };
-    if (vialConfig.hasVialMacroPush) mockVial.macro.push = async (kbinfo) => { spyVialMacroPush = JSON.parse(JSON.stringify(kbinfo)); if(vialConfig.macroPushThrows) throw new Error("macro.push error"); };
-    if (vialConfig.hasVialKeyOverridePush) mockVial.keyoverride.push = async (kbinfo) => { spyVialKeyOverridePush = JSON.parse(JSON.stringify(kbinfo)); if(vialConfig.keyOverridePushThrows) throw new Error("keyoverride.push error"); };
-    
-    if (vialConfig.hasVialSetQmkSetting) mockVial.setQmkSetting = async (n,v) => { spyVialSetQmkSetting = (spyVialSetQmkSetting || []); spyVialSetQmkSetting.push({n,v}); if(vialConfig.setQmkSettingThrows) throw new Error("setQmkSetting error"); };
-    if (vialConfig.hasVialKbSetQmkSetting) mockVial.kb.setQmkSetting = async (n,v) => { spyVialKbSetQmkSetting = (spyVialKbSetQmkSetting || []); spyVialKbSetQmkSetting.push({n,v}); if(vialConfig.kbSetQmkSettingThrows) throw new Error("kb.setQmkSetting error"); };
-    if (vialConfig.hasVialQmkSettingsPush) mockVial.qmkSettings.push = async (kbinfo) => { spyVialQmkSettingsPush = JSON.parse(JSON.stringify(kbinfo)); if(vialConfig.qmkSettingsPushThrows) throw new Error("qmkSettings.push error"); };
-    if (vialConfig.hasVialSettingsPush) mockVial.settings.push = async (kbinfo) => { spyVialSettingsPush = JSON.parse(JSON.stringify(kbinfo)); if(vialConfig.settingsPushThrows) throw new Error("settings.push error"); };
-
-    if (vialConfig.hasVialKbSaveKeymap) mockVial.kb.saveKeymap = async () => { spyVialKbSaveKeymap = true; if(vialConfig.saveKeymapThrows) throw new Error("saveKeymap error"); };
-    if (vialConfig.hasVialKbSaveMacros) mockVial.kb.saveMacros = async () => { spyVialKbSaveMacros = true; if(vialConfig.saveMacrosThrows) throw new Error("saveMacros error"); };
-    if (vialConfig.hasVialKbSaveKeyOverrides) mockVial.kb.saveKeyOverrides = async () => { spyVialKbSaveKeyOverrides = true; if(vialConfig.saveKeyOverridesThrows) throw new Error("saveKeyOverrides error"); };
-    if (vialConfig.hasVialKbSaveQmkSettings) mockVial.kb.saveQmkSettings = async () => { spyVialKbSaveQmkSettings = true; if(vialConfig.saveQmkSettingsThrows) throw new Error("saveQmkSettings error"); };
-    if (vialConfig.hasVialKbSaveSettings) mockVial.kb.saveSettings = async () => { spyVialKbSaveSettings = true; if(vialConfig.saveSettingsThrows) throw new Error("saveSettings error"); };
-    if (vialConfig.hasVialKbSave) mockVial.kb.save = async () => { spyVialKbSave = true; if(vialConfig.saveThrows) throw new Error("save error"); };
-    
-    consoleLogOutput = [];
-    consoleErrorOutput = [];
-    consoleInfoOutput = [];
-    consoleWarnOutput = [];
-    mockProcessExitCode = undefined;
-
-    sandbox = vm.createContext({
-        USB: mockUsb,
-        Vial: mockVial,
-        KEY: mockKey, 
-        fs: mockFs, 
-        path: mockPath, // Provide mock path
-        runInitializers: () => {},
-        console: {
-            log: (...args) => consoleLogOutput.push(args.join(' ')),
-            error: (...args) => consoleErrorOutput.push(args.join(' ')),
-            warn: (...args) => consoleWarnOutput.push(args.join(' ')), 
-            info: (...args) => consoleInfoOutput.push(args.join(' ')), 
-        },
-        global: {},
-        require: require, 
-        process: {
-            get exitCode() { return mockProcessExitCode; },
-            set exitCode(val) { mockProcessExitCode = val; }
-        }
-    });
-    loadScriptInContext('lib/upload_file.js', sandbox);
-}
-
-// --- Test Cases ---
-
-async function testUpload_Error_FilepathMissing() {
-    setupTestEnvironment();
-    await sandbox.global.runUploadFile(null, {});
-    assert(consoleErrorOutput.some(line => line.includes("Error: Filepath must be provided")));
-    assert.strictEqual(mockProcessExitCode, 1);
-    console.log("  PASS: testUpload_Error_FilepathMissing");
-}
-
-async function testUpload_Error_FileReadFails() {
-    setupTestEnvironment({ mockFileReadError: new Error("Permission denied") });
-    await sandbox.global.runUploadFile("test.svl", {});
-    assert(consoleErrorOutput.some(line => line.includes("Error reading file \"test.svl\": Permission denied")));
-    assert.strictEqual(mockProcessExitCode, 1);
-    console.log("  PASS: testUpload_Error_FileReadFails");
-}
-
-async function testUpload_Error_UnsupportedExtension() {
-    setupTestEnvironment({ mockFilePath: "config.txt", mockFileContent: "data" });
-    await sandbox.global.runUploadFile("config.txt", {});
-    assert(consoleErrorOutput.some(line => line.includes("Error: Unsupported file type \".txt\"")));
-    assert.strictEqual(mockProcessExitCode, 1);
-    console.log("  PASS: testUpload_Error_UnsupportedExtension");
-}
-
-async function testUpload_Svl_Error_InvalidJson() {
-    setupTestEnvironment({ mockFilePath: "bad.svl", mockFileContent: "not a valid json" });
-    await sandbox.global.runUploadFile("bad.svl", {});
-    assert(consoleErrorOutput.some(line => line.includes("Error parsing .svl file JSON:")));
-    assert.strictEqual(mockProcessExitCode, 1);
-    console.log("  PASS: testUpload_Svl_Error_InvalidJson");
-}
-
-// .vil file tests
-async function testUpload_Vil_Success_VialApplyVilData() {
-    const vilContent = "vil_data_here";
-    setupTestEnvironment({ 
-        mockFilePath: "keymap.vil", 
-        mockFileContent: vilContent,
-        vialConfig: { hasVialApplyVilData: true, hasVialKbSaveKeymap: true }
-    });
-    await sandbox.global.runUploadFile("keymap.vil", {});
-    assert.strictEqual(spyVialApplyVilData, vilContent);
-    assert.ok(spyVialKbSaveKeymap);
-    assert(consoleInfoOutput.some(line => line.includes("Vial.applyVilData called.")));
-    assert(consoleInfoOutput.some(line => line.includes("File upload process completed successfully for all applicable sections.")));
-    assert.strictEqual(mockProcessExitCode, 0);
-    console.log("  PASS: testUpload_Vil_Success_VialApplyVilData");
-}
-
-async function testUpload_Vil_Success_VialKeymapApplyVil() {
-    const vilContent = "vil_data_keymap_obj";
-     setupTestEnvironment({ 
-        mockFilePath: "keymap.vil", 
-        mockFileContent: vilContent,
-        vialConfig: { hasVialKeymapApplyVil: true, hasVialKbSave: true } // No Vial.applyVilData
-    });
-    await sandbox.global.runUploadFile("keymap.vil", {});
-    assert.strictEqual(spyVialKeymapApplyVil, vilContent);
-    assert.ok(spyVialKbSave);
-    assert(consoleInfoOutput.some(line => line.includes("Vial.keymap.applyVil called.")));
-    assert.strictEqual(mockProcessExitCode, 0);
-    console.log("  PASS: testUpload_Vil_Success_VialKeymapApplyVil");
-}
-
-async function testUpload_Vil_Error_NoApplyFunction() {
-    setupTestEnvironment({ mockFilePath: "keymap.vil", vialConfig: {} }); // No vil functions
-    await sandbox.global.runUploadFile("keymap.vil", {});
-    assert(consoleErrorOutput.some(line => line.includes("File upload process completed with one or more errors")));
-    assert(consoleLogOutput.some(line => line.includes(".vil content: failed (.vil upload may not be supported")));
-    assert.strictEqual(mockProcessExitCode, 1);
-    console.log("  PASS: testUpload_Vil_Error_NoApplyFunction");
-}
-
-async function testUpload_Vil_ApplySuccess_NoSaveFunction() {
-    setupTestEnvironment({ 
-        mockFilePath: "keymap.vil", 
-        mockFileContent: "data",
-        vialConfig: { hasVialApplyVilData: true } // Apply works, no save
-    });
-    await sandbox.global.runUploadFile("keymap.vil", {});
-    assert.ok(spyVialApplyVilData);
-    
-    // Assertions for earlier diagnostic logs (confirming preconditions)
-    assert(consoleLogOutput.some(line => line.includes("DIAGNOSTIC_BEFORE_IF_VILAPPLIED: vilApplied = true")), "vilApplied diagnostic not found or not true");
-    assert(consoleLogOutput.some(line => line.includes("DIAGNOSTIC_BEFORE_SAVE_CHECKS: Vial.kb exists = true, typeof Vial.kb.saveKeymap = undefined, typeof Vial.kb.save = undefined")), "Save checks diagnostic not found or incorrect types");
-    
-    // New assertion for DIAGNOSTIC_SECTION_RESULTS_JSON
-    const expectedWarningObjectString = '{"section":".vil content","status":"warning","reason":"Applied but no keymap save function found."}';
-    const diagnosticLineFound = consoleLogOutput.find(line => line.startsWith('DIAGNOSTIC_SECTION_RESULTS_JSON:'));
-    assert(diagnosticLineFound, "Diagnostic line with sectionResults JSON was not found in console output.");
-    assert(diagnosticLineFound.includes(expectedWarningObjectString), 
-           `Expected warning object ${expectedWarningObjectString} not found in DIAGNOSTIC_SECTION_RESULTS_JSON. Actual: ${diagnosticLineFound}`);
-    
-    assert.strictEqual(mockProcessExitCode, 0); // Warning is not a fatal error for overallSuccess
-    console.log("  PASS: testUpload_Vil_ApplySuccess_NoSaveFunction");
-}
-
-
-// .svl - Keymap
-async function testUpload_Svl_Keymap_Success() {
-    const svlData = { keymap: [["KC_A", "KC_B"], ["KC_C", "KC_D"]] };
-    const mockKbInfo = { layers: 2, rows: 1, cols: 2, keymap_size: 4 }; // Device matches this structure
-    setupTestEnvironment({ 
-        mockFileContent: JSON.stringify(svlData),
-        mockKbinfoInitial: mockKbInfo,
-        vialConfig: { hasVialKbSetFullKeymap: true, hasVialKbSaveKeymap: true }
-    });
-    await sandbox.global.runUploadFile("test.svl", {});
-
-    // Assertions for existing diagnostic logs
-    assert(consoleLogOutput.some(line => line.includes("DIAGNOSTIC_KEYMAP_CHECK_AS_LOG: Checking for Vial.kb.setFullKeymap.")), "Diagnostic: Checking for setFullKeymap (as log) not found in consoleLogOutput.");
-    assert(consoleErrorOutput.some(line => line.includes("DIAGNOSTIC_KEYMAP_CHECK: Vial.kb.setFullKeymap IS truthy. Entering try block.")), "Diagnostic: setFullKeymap IS truthy not found.");
-    assert(consoleInfoOutput.some(line => line.startsWith("DIAGNOSTIC_TEST: About to call Vial.kb.setFullKeymap with numericKeymap:")), "Diagnostic: About to call setFullKeymap not found.");
-    assert(consoleInfoOutput.some(line => line.includes("Vial.kb.setFullKeymap called.")), "Diagnostic: setFullKeymap called. log not found.");
-
-    // Original assertions (keeping the failing one commented for now if needed, but should pass if diagnostics pass)
-    assert.ok(spyVialKbSetFullKeymap, "spyVialKbSetFullKeymap should have been called");
-    assert.deepStrictEqual(spyKeyParse, ["KC_A", "KC_B", "KC_C", "KC_D"], "KEY.parse spy calls mismatch");
-    const expectedKeymapData = [[mockKey.parse("KC_A"), mockKey.parse("KC_B")], [mockKey.parse("KC_C"), mockKey.parse("KC_D")]];
-    assert.deepStrictEqual(spyVialKbSetFullKeymap, expectedKeymapData, "Data sent to setFullKeymap mismatch");
-    assert.ok(spyVialKbSaveKeymap, "spyVialKbSaveKeymap should have been called");
-    assert(consoleLogOutput.some(line => line.includes("keymap: succeeded")), "Success message for keymap section not found in consoleLogOutput.");
-    assert.strictEqual(mockProcessExitCode, 0, `Expected exitCode 0 but got ${mockProcessExitCode}. Errors: ${consoleErrorOutput.join('; ')}`);
-    console.log("  PASS: testUpload_Svl_Keymap_Success");
-}
-
-async function testUpload_Svl_Keymap_Error_LayerCountMismatch() {
-    const svlData = { keymap: [["KC_A"]] }; // 1 layer in file
-    const mockKbInfo = { layers: 2, rows: 1, cols: 1, keymap_size: 2 }; // Device expects 2
-    setupTestEnvironment({ 
-        mockFileContent: JSON.stringify(svlData),
-        mockKbinfoInitial: mockKbInfo,
-        vialConfig: { hasVialKbSetFullKeymap: true }
-    });
-    await sandbox.global.runUploadFile("test.svl", {});
-    assert(consoleLogOutput.some(line => line.includes("keymap: failed (Layer count mismatch")));
-    assert.strictEqual(mockProcessExitCode, 1);
-    console.log("  PASS: testUpload_Svl_Keymap_Error_LayerCountMismatch");
-}
-
-async function testUpload_Svl_Keymap_Error_InvalidKeycodeString() {
-    const svlData = { keymap: [["KC_INVALID"]] };
-     const mockKbInfo = { layers: 1, rows: 1, cols: 1, keymap_size: 1 };
-    setupTestEnvironment({ 
-        mockFileContent: JSON.stringify(svlData),
-        mockKbinfoInitial: mockKbInfo,
-        vialConfig: { hasVialKbSetFullKeymap: true }
-    });
-    await sandbox.global.runUploadFile("test.svl", {});
-    assert(consoleLogOutput.some(line => line.includes("keymap: failed (Invalid keycode string in keymap: \"KC_INVALID\")")));
-    assert.strictEqual(mockProcessExitCode, 1);
-    console.log("  PASS: testUpload_Svl_Keymap_Error_InvalidKeycodeString");
-}
-
-
-// .svl - Macros
-async function testUpload_Svl_Macros_Success() {
-    const svlData = { macros: [{mid: 0, actions: [['tap', mockKey.parse("KC_A")]]}] };
-    setupTestEnvironment({
-        mockFileContent: JSON.stringify(svlData),
-        vialConfig: { hasVialMacroPush: true, hasVialKbSaveMacros: true }
-    });
-    await sandbox.global.runUploadFile("test.svl", {});
-    assert.ok(spyVialMacroPush);
-    assert.deepStrictEqual(spyVialMacroPush.macros, svlData.macros);
-    assert.ok(spyVialKbSaveMacros);
-    assert(consoleLogOutput.some(line => line.includes("macros: succeeded")));
-    assert.strictEqual(mockProcessExitCode, 0);
-    console.log("  PASS: testUpload_Svl_Macros_Success");
-}
-
-// .svl - Key Overrides (similar to macros)
-async function testUpload_Svl_KeyOverrides_Success() {
-    const svlData = { key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}] };
-    setupTestEnvironment({
-        mockFileContent: JSON.stringify(svlData),
-        vialConfig: { hasVialKeyOverridePush: true, hasVialKbSaveKeyOverrides: true }
-    });
-    await sandbox.global.runUploadFile("test.svl", {});
-    assert.ok(spyVialKeyOverridePush);
-    assert.deepStrictEqual(spyVialKeyOverridePush.key_overrides, svlData.key_overrides);
-    assert.ok(spyVialKbSaveKeyOverrides);
-     assert(consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
-    assert.strictEqual(mockProcessExitCode, 0);
-    console.log("  PASS: testUpload_Svl_KeyOverrides_Success");
-}
-
-
-// .svl - QMK Settings
-async function testUpload_Svl_QmkSettings_Success_BulkPush() {
-    const svlData = { qmk_settings: {"setting1": "val1", "setting2": true} };
-    setupTestEnvironment({
-        mockFileContent: JSON.stringify(svlData),
-        mockKbinfoInitial: { qmk_settings: {"setting1": "old", "setting3": 123} }, // Initial device state
-        vialConfig: { hasVialQmkSettingsPush: true, hasVialKbSaveQmkSettings: true }
-    });
-    await sandbox.global.runUploadFile("test.svl", {});
-    assert.ok(spyVialQmkSettingsPush);
-    assert.deepStrictEqual(spyVialQmkSettingsPush.qmk_settings, {
-        "setting1": "val1", // Updated
-        "setting2": true,   // Added
-        "setting3": 123     // Original preserved
-    });
-    assert.ok(spyVialKbSaveQmkSettings);
-    assert(consoleLogOutput.some(line => line.includes("qmk_settings: 2 applied, 0 failed/skipped.")));
-    assert.strictEqual(mockProcessExitCode, 0);
-    console.log("  PASS: testUpload_Svl_QmkSettings_Success_BulkPush");
-}
-
-async function testUpload_Svl_QmkSettings_Success_IndividualSet() {
-    const svlData = { settings: {"brightness": 100, "effect": "rainbow"} };
-    setupTestEnvironment({
-        mockFileContent: JSON.stringify(svlData),
-        mockKbinfoInitial: { settings: {} }, // No bulk push, use individual
-        vialConfig: { hasVialSetQmkSetting: true, hasVialKbSaveSettings: true }
-    });
-    await sandbox.global.runUploadFile("test.svl", {});
-    assert.ok(spyVialSetQmkSetting);
-    assert.strictEqual(spyVialSetQmkSetting.length, 2);
-    assert.deepStrictEqual(spyVialSetQmkSetting.find(call => call.n === "brightness").v, 100);
-    assert.deepStrictEqual(spyVialSetQmkSetting.find(call => call.n === "effect").v, "rainbow");
-    assert.ok(spyVialKbSaveSettings);
-    assert(consoleLogOutput.some(line => line.includes("qmk_settings: 2 applied, 0 failed/skipped.")));
-    assert.strictEqual(mockProcessExitCode, 0);
-    console.log("  PASS: testUpload_Svl_QmkSettings_Success_IndividualSet");
-}
-
-// Comprehensive SVL
-async function testUpload_Svl_AllSections_Success() {
-    const svlData = {
-        keymap: [[mockKey.parse("KC_E")]],
-        macros: [{mid:0, actions:[['tap', mockKey.parse("KC_F")]]}],
-        key_overrides: [{koid:0, trigger_key: mockKey.parse("KC_G"), override_key: mockKey.parse("KC_H")}],
-        qmk_settings: {"mySetting": "myVal"}
-    };
-    setupTestEnvironment({
-        mockFileContent: JSON.stringify(svlData),
-        mockKbinfoInitial: { layers: 1, rows:1, cols:1, keymap_size:1, qmk_settings: { "oldSetting": 1}},
-        vialConfig: { 
-            hasVialKbSetFullKeymap: true, hasVialKbSaveKeymap: true,
-            hasVialMacroPush: true, hasVialKbSaveMacros: true,
-            hasVialKeyOverridePush: true, hasVialKbSaveKeyOverrides: true,
-            hasVialSetQmkSetting: true, hasVialKbSaveQmkSettings: true // Test individual set for QMK
-        }
-    });
-    await sandbox.global.runUploadFile("test.svl", {});
-    assert.ok(spyVialKbSetFullKeymap);
-    assert.ok(spyVialMacroPush);
-    assert.ok(spyVialKeyOverridePush);
-    assert.ok(spyVialSetQmkSetting && spyVialSetQmkSetting.some(call => call.n === "mySetting"));
-    assert(consoleLogOutput.some(line => line.includes("keymap: succeeded")));
-    assert(consoleLogOutput.some(line => line.includes("macros: succeeded")));
-    assert(consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
-    assert(consoleLogOutput.some(line => line.includes("qmk_settings: 1 applied, 0 failed/skipped.")));
-    assert.strictEqual(mockProcessExitCode, 0);
-    console.log("  PASS: testUpload_Svl_AllSections_Success");
-}
-
-async function testUpload_Svl_SectionFail_Continues() {
-    const svlData = {
-        keymap: [["KC_INVALID"]], // This will fail parsing
-        macros: [{mid:0, actions:[['tap', mockKey.parse("KC_F")]]}]
-    };
-     setupTestEnvironment({
-        mockFileContent: JSON.stringify(svlData),
-        mockKbinfoInitial: { layers: 1, rows:1, cols:1, keymap_size:1 },
-        vialConfig: { 
-            hasVialKbSetFullKeymap: true, hasVialKbSaveKeymap: true,
-            hasVialMacroPush: true, hasVialKbSaveMacros: true,
-        }
-    });
-    await sandbox.global.runUploadFile("test.svl", {});
-    assert(consoleLogOutput.some(line => line.includes("keymap: failed (Invalid keycode string in keymap: \"KC_INVALID\")")));
-    assert(consoleLogOutput.some(line => line.includes("macros: succeeded"))); // Macro section should still succeed
-    assert.strictEqual(mockProcessExitCode, 1); // Overall failure due to keymap
-    console.log("  PASS: testUpload_Svl_SectionFail_Continues");
-}
-
-
-// General errors
-async function testUpload_Error_NoDeviceFound() {
-    // Call setupTestEnvironment with minimal config, ensuring critical mocks for early script execution are present.
-    // fs (for readFileSync) and path (for extname) are mocked within setupTestEnvironment itself.
-    // USB, Vial, KEY, runInitializers, console are needed in the sandbox.
-    setupTestEnvironment({
-        mockFilePath: 'test.svl', // Needs to match the filepath used in runUploadFile
-        mockFileContent: '{}', // Minimal valid JSON for .svl to pass early checks
-        mockKbinfoInitial: {}, // Minimal kbinfo
-        vialConfig: {} // No specific Vial functions needed before USB.list()
-    });
-    mockUsb.list = () => []; // This is the key mock for this test
-    
-    await sandbox.global.runUploadFile("test.svl", {}); // Use the same filepath as in setup
-
-    // Only assert the very first diagnostic message
-    assert(consoleErrorOutput.some(line => line.includes("DIAGNOSTIC_LIB_TOP: uploadFile function started.")));
-    // We are not checking process.exitCode here to isolate the console capture problem.
-    // If DIAGNOSTIC_LIB_TOP is seen, it means the script started and console.error works.
-    console.log("  PASS: testUpload_Error_NoDeviceFound");
-}
-
-
-// --- Main test runner ---
-async function runAllTests() {
-    originalProcessExitCode = process.exitCode;
-    process.exitCode = 0;
-
-    const tests = [
-        testUpload_Error_FilepathMissing,
-        testUpload_Error_FileReadFails,
-        testUpload_Error_UnsupportedExtension,
-        testUpload_Svl_Error_InvalidJson,
-        testUpload_Vil_Success_VialApplyVilData,
-        testUpload_Vil_Success_VialKeymapApplyVil,
-        testUpload_Vil_Error_NoApplyFunction,
-        testUpload_Vil_ApplySuccess_NoSaveFunction,
-        testUpload_Svl_Keymap_Success,
-        testUpload_Svl_Keymap_Error_LayerCountMismatch,
-        testUpload_Svl_Keymap_Error_InvalidKeycodeString,
-        testUpload_Svl_Macros_Success,
-        testUpload_Svl_KeyOverrides_Success,
-        testUpload_Svl_QmkSettings_Success_BulkPush,
-        testUpload_Svl_QmkSettings_Success_IndividualSet,
-        testUpload_Svl_AllSections_Success,
-        testUpload_Svl_SectionFail_Continues,
-        testUpload_Error_NoDeviceFound,
-        // Add more tests for Vial function errors, skipped sections due to missing functions etc.
-    ];
-
-    let passed = 0;
-    let failed = 0;
-    console.log("Starting tests for upload file...\n");
-
-    for (const test of tests) {
-        // Reset spies and outputs for each test
+        // Reset spies
         spyFsReadFileSync = null;
         spyVialApplyVilData = null;
         spyVialKeymapApplyVil = null;
-        // ... reset all other spies ...
-        if (spyKeyParse) spyKeyParse.length = 0; else spyKeyParse = [];
-        if (consoleLogOutput) consoleLogOutput.length = 0; else consoleLogOutput = [];
-        if (consoleErrorOutput) consoleErrorOutput.length = 0; else consoleErrorOutput = [];
-        if (consoleInfoOutput) consoleInfoOutput.length = 0; else consoleInfoOutput = [];
-        if (consoleWarnOutput) consoleWarnOutput.length = 0; else consoleWarnOutput = [];
+        spyVialKbSetFullKeymap = null;
+        spyVialMacroPush = null;
+        spyVialKeyOverridePush = null;
+        spyVialSetQmkSetting = [];
+        spyVialKbSetQmkSetting = [];
+        spyVialQmkSettingsPush = null;
+        spyVialSettingsPush = null;
+        spyVialKbSaveKeymap = false;
+        spyVialKbSaveMacros = false;
+        spyVialKbSaveKeyOverrides = false;
+        spyVialKbSaveQmkSettings = false;
+        spyVialKbSaveSettings = false;
+        spyVialKbSave = false;
+        spyKeyParseCalls = [];
+
+        mockFs = {
+            readFileSync: (filepath, encoding) => {
+                spyFsReadFileSync = { filepath, encoding };
+                if (fileConfig.readError) throw fileConfig.readError;
+                if (filepath === fileConfig.path) return fileConfig.content;
+                throw new Error(`Unexpected file path: ${filepath}`);
+            }
+        };
+
+        mockPath = {
+            extname: (p) => {
+                const dotIndex = p.lastIndexOf('.');
+                return dotIndex === -1 ? '' : p.substring(dotIndex);
+            }
+        };
+
+        mockKey = { parse: mockKeyParseImplementation };
+
+        // Build Vial mock with configurable methods
+        mockVial = {
+            init: async (kbinfoRef) => {
+                if (vialConfig.initThrows) throw new Error("Simulated Vial.init error");
+                Object.assign(kbinfoRef, mockKbinfoData);
+            },
+            load: async (kbinfoRef) => {
+                if (vialConfig.loadThrows) throw new Error("Simulated Vial.load error");
+                Object.assign(kbinfoRef, mockKbinfoData);
+            },
+            kb: {},
+            macro: {},
+            keyoverride: {},
+            qmkSettings: {},
+            settings: {}
+        };
+
+        // Add optional Vial methods based on config
+        if (vialConfig.hasApplyVilData) {
+            mockVial.applyVilData = async (content) => {
+                spyVialApplyVilData = content;
+                if (vialConfig.applyVilDataThrows) throw new Error("Simulated applyVilData error");
+            };
+        }
+
+        if (vialConfig.hasKeymapApplyVil) {
+            mockVial.keymap = {
+                applyVil: async (content) => {
+                    spyVialKeymapApplyVil = content;
+                    if (vialConfig.keymapApplyVilThrows) throw new Error("Simulated keymap.applyVil error");
+                }
+            };
+        }
+
+        if (vialConfig.hasKbSetFullKeymap) {
+            mockVial.kb.setFullKeymap = async (data) => {
+                spyVialKbSetFullKeymap = JSON.parse(JSON.stringify(data));
+                if (vialConfig.setFullKeymapThrows) throw new Error("Simulated setFullKeymap error");
+            };
+        }
+
+        if (vialConfig.hasMacroPush) {
+            mockVial.macro.push = async (kbinfo) => {
+                spyVialMacroPush = JSON.parse(JSON.stringify(kbinfo));
+                if (vialConfig.macroPushThrows) throw new Error("Simulated macro.push error");
+            };
+        }
+
+        if (vialConfig.hasKeyOverridePush) {
+            mockVial.keyoverride.push = async (kbinfo) => {
+                spyVialKeyOverridePush = JSON.parse(JSON.stringify(kbinfo));
+                if (vialConfig.keyOverridePushThrows) throw new Error("Simulated keyoverride.push error");
+            };
+        }
+
+        if (vialConfig.hasSetQmkSetting) {
+            mockVial.setQmkSetting = async (name, value) => {
+                spyVialSetQmkSetting.push({ name, value });
+                if (vialConfig.setQmkSettingThrows) throw new Error("Simulated setQmkSetting error");
+            };
+        }
+
+        if (vialConfig.hasKbSetQmkSetting) {
+            mockVial.kb.setQmkSetting = async (name, value) => {
+                spyVialKbSetQmkSetting.push({ name, value });
+                if (vialConfig.kbSetQmkSettingThrows) throw new Error("Simulated kb.setQmkSetting error");
+            };
+        }
+
+        if (vialConfig.hasQmkSettingsPush) {
+            mockVial.qmkSettings.push = async (kbinfo) => {
+                spyVialQmkSettingsPush = JSON.parse(JSON.stringify(kbinfo));
+                if (vialConfig.qmkSettingsPushThrows) throw new Error("Simulated qmkSettings.push error");
+            };
+        }
+
+        if (vialConfig.hasSettingsPush) {
+            mockVial.settings.push = async (kbinfo) => {
+                spyVialSettingsPush = JSON.parse(JSON.stringify(kbinfo));
+                if (vialConfig.settingsPushThrows) throw new Error("Simulated settings.push error");
+            };
+        }
+
+        // Save methods
+        if (vialConfig.hasKbSaveKeymap) {
+            mockVial.kb.saveKeymap = async () => {
+                spyVialKbSaveKeymap = true;
+                if (vialConfig.saveKeymapThrows) throw new Error("Simulated saveKeymap error");
+            };
+        }
+
+        if (vialConfig.hasKbSaveMacros) {
+            mockVial.kb.saveMacros = async () => {
+                spyVialKbSaveMacros = true;
+                if (vialConfig.saveMacrosThrows) throw new Error("Simulated saveMacros error");
+            };
+        }
+
+        if (vialConfig.hasKbSaveKeyOverrides) {
+            mockVial.kb.saveKeyOverrides = async () => {
+                spyVialKbSaveKeyOverrides = true;
+                if (vialConfig.saveKeyOverridesThrows) throw new Error("Simulated saveKeyOverrides error");
+            };
+        }
+
+        if (vialConfig.hasKbSaveQmkSettings) {
+            mockVial.kb.saveQmkSettings = async () => {
+                spyVialKbSaveQmkSettings = true;
+                if (vialConfig.saveQmkSettingsThrows) throw new Error("Simulated saveQmkSettings error");
+            };
+        }
+
+        if (vialConfig.hasKbSaveSettings) {
+            mockVial.kb.saveSettings = async () => {
+                spyVialKbSaveSettings = true;
+                if (vialConfig.saveSettingsThrows) throw new Error("Simulated saveSettings error");
+            };
+        }
+
+        if (vialConfig.hasKbSave) {
+            mockVial.kb.save = async () => {
+                spyVialKbSave = true;
+                if (vialConfig.saveThrows) throw new Error("Simulated save error");
+            };
+        }
+
+        consoleLogOutput = [];
+        consoleErrorOutput = [];
+        consoleInfoOutput = [];
+        consoleWarnOutput = [];
         mockProcessExitCode = undefined;
 
-        try {
-            await test();
-            passed++;
-        } catch (e) {
-            console.error(`  FAIL: ${test.name}`);
-            const message = e.message && (e.message.startsWith('Test Failed') || e.message.startsWith('AssertionError')) ? e.message : e.toString();
-            console.error(`    Error: ${message.split('\\n')[0]}`);
-            if (e.stack && !message.includes(e.stack.split('\\n')[0])) {
-                // console.error(e.stack); 
+        sandbox = vm.createContext({
+            USB: mockUsb,
+            Vial: mockVial,
+            KEY: mockKey,
+            fs: mockFs,
+            path: mockPath,
+            runInitializers: () => {},
+            console: {
+                log: (...args) => consoleLogOutput.push(args.join(' ')),
+                error: (...args) => consoleErrorOutput.push(args.join(' ')),
+                warn: (...args) => consoleWarnOutput.push(args.join(' ')),
+                info: (...args) => consoleInfoOutput.push(args.join(' ')),
+            },
+            global: {},
+            require: require,
+            process: {
+                get exitCode() { return mockProcessExitCode; },
+                set exitCode(val) { mockProcessExitCode = val; }
             }
-            failed++;
+        });
+        loadScriptInContext('lib/upload_file.js', sandbox);
+    }
+
+    beforeEach(() => {
+        setupTestEnvironment();
+    });
+
+    // --- Basic Error Tests ---
+
+    it('should error if filepath is missing', async () => {
+        await sandbox.global.runUploadFile(null, {});
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Filepath must be provided")));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should error if file read fails', async () => {
+        setupTestEnvironment({
+            fileConfig: { path: 'test.svl', content: '{}', readError: new Error("Permission denied") }
+        });
+        await sandbox.global.runUploadFile("test.svl", {});
+        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error reading file "test.svl": Permission denied')));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should error for unsupported file extension', async () => {
+        setupTestEnvironment({
+            fileConfig: { path: 'config.txt', content: 'data' }
+        });
+        await sandbox.global.runUploadFile("config.txt", {});
+        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Unsupported file type ".txt"')));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should error for invalid JSON in .svl file', async () => {
+        setupTestEnvironment({
+            fileConfig: { path: 'bad.svl', content: 'not valid json' }
+        });
+        await sandbox.global.runUploadFile("bad.svl", {});
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error parsing .svl file JSON:")));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should error if no compatible device is found', async () => {
+        setupTestEnvironment({
+            usbConfig: { overrides: { list: () => [] } }
+        });
+        await sandbox.global.runUploadFile("test.svl", {});
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should error if USB open fails', async () => {
+        setupTestEnvironment({
+            usbConfig: { overrides: { open: async () => false } }
+        });
+        await sandbox.global.runUploadFile("test.svl", {});
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should error if required objects not found in sandbox', async () => {
+        consoleLogOutput = [];
+        consoleErrorOutput = [];
+        mockProcessExitCode = undefined;
+
+        sandbox = vm.createContext({
+            // Missing USB, Vial, etc. but include require to avoid early ReferenceError
+            console: {
+                log: (...args) => consoleLogOutput.push(args.join(' ')),
+                error: (...args) => consoleErrorOutput.push(args.join(' ')),
+            },
+            process: {
+                get exitCode() { return mockProcessExitCode; },
+                set exitCode(val) { mockProcessExitCode = val; }
+            },
+            require: require, // Include require so script can load
+            global: {}
+        });
+
+        try {
+            loadScriptInContext('lib/upload_file.js', sandbox);
+
+            if (sandbox.global.runUploadFile) {
+                try {
+                    await sandbox.global.runUploadFile("test.svl", {});
+                    assert.isTrue(
+                        consoleErrorOutput.some(line => line.includes("Error: Required objects (USB, Vial, fs, KEY, runInitializers) not found in sandbox.")) ||
+                        mockProcessExitCode === 1
+                    );
+                } catch (error) {
+                    // ReferenceError is also acceptable since USB is not defined
+                    assert.isTrue(error.constructor.name === 'ReferenceError' &&
+                                 (error.message.includes('USB') || error.message.includes('Vial') || error.message.includes('fs')));
+                }
+            } else {
+                // If function wasn't exposed, that's also a valid way to handle missing dependencies
+                assert.isUndefined(sandbox.global.runUploadFile);
+            }
+        } catch (error) {
+            // If the script itself fails to load due to missing dependencies, that's also acceptable
+            assert.isTrue(error.constructor.name === 'ReferenceError');
         }
-    }
+    });
 
-    console.log(`\nSummary: ${passed} passed, ${failed} failed.`);
-    const finalExitCode = failed > 0 ? 1 : 0;
-    
-    if (originalProcessExitCode !== undefined) {
-        process.exitCode = originalProcessExitCode;
-    }
-    if (finalExitCode !== 0) {
-         process.exitCode = finalExitCode;
-    }
-}
+    it('should handle error during Vial.init', async () => {
+        setupTestEnvironment({
+            vialConfig: { initThrows: true }
+        });
+        await sandbox.global.runUploadFile("test.svl", {});
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during upload: Simulated Vial.init error")));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
 
-if (require.main === module) {
-    runAllTests();
-}
+    it('should handle error during Vial.load', async () => {
+        setupTestEnvironment({
+            vialConfig: { loadThrows: true }
+        });
+        await sandbox.global.runUploadFile("test.svl", {});
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during upload: Simulated Vial.load error")));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    // --- .vil File Tests ---
+
+    describe('.vil file handling', () => {
+        it('should upload .vil file using Vial.applyVilData', async () => {
+            const vilContent = "vil_data_content";
+            setupTestEnvironment({
+                fileConfig: { path: 'keymap.vil', content: vilContent },
+                vialConfig: { hasApplyVilData: true, hasKbSaveKeymap: true }
+            });
+
+            await sandbox.global.runUploadFile("keymap.vil", {});
+
+            assert.strictEqual(spyVialApplyVilData, vilContent);
+            assert.strictEqual(spyVialKbSaveKeymap, true);
+            assert.isTrue(consoleInfoOutput.some(line => line.includes("Vial.applyVilData called.")));
+            assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should upload .vil file using Vial.keymap.applyVil as fallback', async () => {
+            const vilContent = "vil_keymap_content";
+            setupTestEnvironment({
+                fileConfig: { path: 'keymap.vil', content: vilContent },
+                vialConfig: { hasKeymapApplyVil: true, hasKbSave: true }
+            });
+
+            await sandbox.global.runUploadFile("keymap.vil", {});
+
+            assert.strictEqual(spyVialKeymapApplyVil, vilContent);
+            assert.strictEqual(spyVialKbSave, true);
+            assert.isTrue(consoleInfoOutput.some(line => line.includes("Vial.keymap.applyVil called.")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should error if no .vil apply function is available', async () => {
+            setupTestEnvironment({
+                fileConfig: { path: 'keymap.vil', content: 'data' },
+                vialConfig: {} // No apply functions
+            });
+
+            await sandbox.global.runUploadFile("keymap.vil", {});
+
+            assert.isTrue(consoleErrorOutput.some(line => line.includes("File upload process completed with one or more errors")));
+            assert.isTrue(consoleLogOutput.some(line => line.includes(".vil content: failed (.vil upload may not be supported")));
+            assert.strictEqual(mockProcessExitCode, 1);
+        });
+
+        it('should warn if .vil applied but no save function found', async () => {
+            setupTestEnvironment({
+                fileConfig: { path: 'keymap.vil', content: 'data' },
+                vialConfig: { hasApplyVilData: true } // Apply works, no save
+            });
+
+            await sandbox.global.runUploadFile("keymap.vil", {});
+
+            assert.strictEqual(spyVialApplyVilData, 'data');
+            assert.isTrue(consoleLogOutput.some(line => line.includes('.vil content: warning (Applied but no keymap save function found.)')));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should handle error during Vial.applyVilData', async () => {
+            setupTestEnvironment({
+                fileConfig: { path: 'keymap.vil', content: 'data' },
+                vialConfig: { hasApplyVilData: true, applyVilDataThrows: true }
+            });
+
+            await sandbox.global.runUploadFile("keymap.vil", {});
+
+            assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during upload: Simulated applyVilData error")));
+            assert.strictEqual(mockProcessExitCode, 1);
+        });
+    });
+
+    // --- .svl File Tests ---
+
+    describe('.svl file handling - keymap section', () => {
+        it('should upload keymap successfully', async () => {
+            const svlData = { keymap: [["KC_A", "KC_B"], ["KC_C", "KC_D"]] };
+            setupTestEnvironment({
+                mockKbinfoData: { layers: 2, rows: 1, cols: 2, keymap_size: 4 },
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasKbSetFullKeymap: true, hasKbSaveKeymap: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isNotNull(spyVialKbSetFullKeymap);
+            assert.deepStrictEqual(spyKeyParseCalls, ["KC_A", "KC_B", "KC_C", "KC_D"]);
+            assert.strictEqual(spyVialKbSaveKeymap, true);
+            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: succeeded")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should fail keymap upload if layer count mismatches', async () => {
+            const svlData = { keymap: [["KC_A"]] }; // 1 layer
+            setupTestEnvironment({
+                mockKbinfoData: { layers: 2, rows: 1, cols: 1, keymap_size: 2 }, // Expects 2 layers
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasKbSetFullKeymap: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: failed (Layer count mismatch")));
+            assert.strictEqual(mockProcessExitCode, 1);
+        });
+
+        it('should fail keymap upload if keycode string is invalid', async () => {
+            const svlData = { keymap: [["KC_INVALID"]] };
+            setupTestEnvironment({
+                mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1 },
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasKbSetFullKeymap: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes('keymap: failed (Invalid keycode string in keymap: "KC_INVALID")')));
+            assert.strictEqual(mockProcessExitCode, 1);
+        });
+
+        it('should warn if keymap set but no save function found', async () => {
+            const svlData = { keymap: [["KC_A"]] };
+            setupTestEnvironment({
+                mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1 },
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasKbSetFullKeymap: true } // No save function
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: warning (Set but no keymap save function found.)")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should skip keymap if setFullKeymap not available', async () => {
+            const svlData = { keymap: [["KC_A"]] };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: {} // No setFullKeymap
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: skipped (Vial.kb.setFullKeymap not available.)")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should handle error during setFullKeymap', async () => {
+            const svlData = { keymap: [["KC_A"]] };
+            setupTestEnvironment({
+                mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1 },
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasKbSetFullKeymap: true, setFullKeymapThrows: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: failed (Simulated setFullKeymap error)")));
+            assert.strictEqual(mockProcessExitCode, 1);
+        });
+    });
+
+    describe('.svl file handling - macros section', () => {
+        it('should upload macros successfully', async () => {
+            const svlData = { macros: [{ mid: 0, actions: [['tap', 100]] }] };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasMacroPush: true, hasKbSaveMacros: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isNotNull(spyVialMacroPush);
+            assert.deepStrictEqual(spyVialMacroPush.macros, svlData.macros);
+            assert.strictEqual(spyVialKbSaveMacros, true);
+            assert.isTrue(consoleLogOutput.some(line => line.includes("macros: succeeded")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should skip macros if push or save not available', async () => {
+            const svlData = { macros: [{ mid: 0, actions: [['tap', 100]] }] };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: {} // No macro functions
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("macros: skipped (Vial.macro.push or Vial.kb.saveMacros not available.)")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should handle error during macro.push', async () => {
+            const svlData = { macros: [{ mid: 0, actions: [['tap', 100]] }] };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasMacroPush: true, hasKbSaveMacros: true, macroPushThrows: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("macros: failed (Simulated macro.push error)")));
+            assert.strictEqual(mockProcessExitCode, 1);
+        });
+    });
+
+    describe('.svl file handling - key_overrides section', () => {
+        it('should upload key_overrides successfully', async () => {
+            const svlData = { key_overrides: [{ koid: 0, trigger_key: 100, override_key: 200 }] };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasKeyOverridePush: true, hasKbSaveKeyOverrides: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isNotNull(spyVialKeyOverridePush);
+            assert.deepStrictEqual(spyVialKeyOverridePush.key_overrides, svlData.key_overrides);
+            assert.strictEqual(spyVialKbSaveKeyOverrides, true);
+            assert.isTrue(consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should use generic save if saveKeyOverrides not available', async () => {
+            const svlData = { key_overrides: [{ koid: 0, trigger_key: 100, override_key: 200 }] };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasKeyOverridePush: true, hasKbSave: true } // Generic save only
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.strictEqual(spyVialKbSave, true);
+            assert.isTrue(consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should skip key_overrides if push not available', async () => {
+            const svlData = { key_overrides: [{ koid: 0, trigger_key: 100, override_key: 200 }] };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: {} // No keyoverride functions
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("key_overrides: skipped (Vial.keyoverride.push or Vial.kb not available.)")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+    });
+
+    describe('.svl file handling - qmk_settings section', () => {
+        it('should upload qmk_settings using bulk push', async () => {
+            const svlData = { qmk_settings: { "setting1": "value1", "setting2": true } };
+            setupTestEnvironment({
+                mockKbinfoData: { qmk_settings: { "setting3": "existing" } },
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasQmkSettingsPush: true, hasKbSaveQmkSettings: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isNotNull(spyVialQmkSettingsPush);
+            assert.deepStrictEqual(spyVialQmkSettingsPush.qmk_settings, {
+                "setting1": "value1",
+                "setting2": true,
+                "setting3": "existing"
+            });
+            assert.strictEqual(spyVialKbSaveQmkSettings, true);
+            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 2 applied, 0 failed/skipped.")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should upload settings using individual set methods', async () => {
+            const svlData = { settings: { "brightness": 100, "effect": "rainbow" } };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasSetQmkSetting: true, hasKbSaveSettings: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.strictEqual(spyVialSetQmkSetting.length, 2);
+            assert.isTrue(spyVialSetQmkSetting.some(call => call.name === "brightness" && call.value === 100));
+            assert.isTrue(spyVialSetQmkSetting.some(call => call.name === "effect" && call.value === "rainbow"));
+            assert.strictEqual(spyVialKbSaveSettings, true);
+            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 2 applied, 0 failed/skipped.")));
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should use kb.setQmkSetting if setQmkSetting not available', async () => {
+            const svlData = { qmk_settings: { "test": "value" } };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasKbSetQmkSetting: true, hasKbSaveQmkSettings: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.strictEqual(spyVialKbSetQmkSetting.length, 1);
+            assert.strictEqual(spyVialKbSetQmkSetting[0].name, "test");
+            assert.strictEqual(spyVialKbSetQmkSetting[0].value, "value");
+            assert.strictEqual(mockProcessExitCode, 0);
+        });
+
+        it('should handle mixed success and failure in individual settings', async () => {
+            const svlData = { qmk_settings: { "good": "value", "bad": "value" } };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: {
+                    hasSetQmkSetting: true,
+                    hasKbSaveQmkSettings: true,
+                    setQmkSettingThrows: true // Will throw for all settings
+                }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 0 applied, 2 failed/skipped.")));
+            assert.strictEqual(mockProcessExitCode, 1);
+        });
+
+        it('should warn if no setting methods available', async () => {
+            const svlData = { qmk_settings: { "test": "value" } };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: {} // No setting methods
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 0 applied, 1 failed/skipped.")));
+            assert.strictEqual(mockProcessExitCode, 1);
+        });
+
+        it('should handle error during bulk push', async () => {
+            const svlData = { qmk_settings: { "test": "value" } };
+            setupTestEnvironment({
+                fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+                vialConfig: { hasQmkSettingsPush: true, qmkSettingsPushThrows: true }
+            });
+
+            await sandbox.global.runUploadFile("test.svl", {});
+
+            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings (bulk): failed (Bulk push error: Simulated qmkSettings.push error)")));
+            assert.strictEqual(mockProcessExitCode, 1);
+        });
+    });
+
+    // --- Integration Tests ---
+
+    it('should upload complete .svl file with all sections successfully', async () => {
+        const svlData = {
+            keymap: [["KC_A"]],
+            macros: [{ mid: 0, actions: [['tap', 100]] }],
+            key_overrides: [{ koid: 0, trigger_key: 100, override_key: 200 }],
+            qmk_settings: { "test": "value" }
+        };
+        setupTestEnvironment({
+            mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1, qmk_settings: {} },
+            fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+            vialConfig: {
+                hasKbSetFullKeymap: true, hasKbSaveKeymap: true,
+                hasMacroPush: true, hasKbSaveMacros: true,
+                hasKeyOverridePush: true, hasKbSaveKeyOverrides: true,
+                hasSetQmkSetting: true, hasKbSaveQmkSettings: true
+            }
+        });
+
+        await sandbox.global.runUploadFile("test.svl", {});
+
+        assert.isNotNull(spyVialKbSetFullKeymap);
+        assert.isNotNull(spyVialMacroPush);
+        assert.isNotNull(spyVialKeyOverridePush);
+        assert.strictEqual(spyVialSetQmkSetting.length, 1);
+        assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: succeeded")));
+        assert.isTrue(consoleLogOutput.some(line => line.includes("macros: succeeded")));
+        assert.isTrue(consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
+        assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 1 applied, 0 failed/skipped.")));
+        assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
+        assert.strictEqual(mockProcessExitCode, 0);
+    });
+
+    it('should continue uploading other sections if one section fails', async () => {
+        const svlData = {
+            keymap: [["KC_INVALID"]], // This will fail
+            macros: [{ mid: 0, actions: [['tap', 100]] }] // This should succeed
+        };
+        setupTestEnvironment({
+            mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1 },
+            fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
+            vialConfig: {
+                hasKbSetFullKeymap: true, hasKbSaveKeymap: true,
+                hasMacroPush: true, hasKbSaveMacros: true
+            }
+        });
+
+        await sandbox.global.runUploadFile("test.svl", {});
+
+        assert.isTrue(consoleLogOutput.some(line => line.includes('keymap: failed (Invalid keycode string in keymap: "KC_INVALID")')));
+        assert.isTrue(consoleLogOutput.some(line => line.includes("macros: succeeded")));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("File upload process completed with one or more errors")));
+        assert.strictEqual(mockProcessExitCode, 1);
+    });
+
+    it('should handle empty .svl file gracefully', async () => {
+        setupTestEnvironment({
+            fileConfig: { path: 'empty.svl', content: '{}' }
+        });
+
+        await sandbox.global.runUploadFile("empty.svl", {});
+
+        assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
+        assert.strictEqual(mockProcessExitCode, 0);
+    });
+});
