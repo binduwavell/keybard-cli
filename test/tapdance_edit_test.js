@@ -1,11 +1,11 @@
 const { assert } = require('chai'); // Switched to Chai's assert
 const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 
-const MAX_TAPDANCE_SLOTS_IN_TEST = 4; 
-const DEFAULT_TAPPING_TERM_IN_LIB = 200; 
-const KC_NO_VALUE_IN_LIB = 0x00;       
+const MAX_TAPDANCE_SLOTS_IN_TEST = 4;
+const DEFAULT_TAPPING_TERM_IN_LIB = 200;
+const KC_NO_VALUE_IN_LIB = 0x00;
 
 function loadScriptInContext(scriptPath, context) {
     const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
@@ -16,17 +16,17 @@ function loadScriptInContext(scriptPath, context) {
 describe('tapdance_edit.js command tests', () => {
     let sandbox;
     let mockUsb;
-    let mockVial; 
-    let mockVialTapdance; 
-    let mockVialKb;    
-    let mockKey;    
+    let mockVial;
+    let mockVialTapdance;
+    let mockVialKb;
+    let mockKey;
     let consoleLogOutput;
-    let consoleErrorOutput; 
+    let consoleErrorOutput;
     let mockProcessExitCode;
 
     // Spies
     let spyKeyParseCalls;
-    let spyKeyStringifyCalls; 
+    let spyKeyStringifyCalls;
     let spyVialTapdancePushKbinfo;
     let spyVialTapdancePushTdid;
     let spyVialKbSaveTapDancesCalled;
@@ -34,8 +34,8 @@ describe('tapdance_edit.js command tests', () => {
     const mockKeyDb = {
         "KC_A": 0x04, "KC_B": 0x05, "KC_C": 0x06, "KC_D": 0x07, "KC_E": 0x08, "KC_X": 0x1B, "KC_Y": 0x1C, "KC_Z": 0x1D,
         "KC_LCTL": 0xE0, "KC_NO": KC_NO_VALUE_IN_LIB, "KC_NONE": KC_NO_VALUE_IN_LIB, "0x0000": KC_NO_VALUE_IN_LIB,
-        "KC_A_DEFAULT": 0xFA, 
-        "KC_A_S": "KC_A_STR", "KC_B_S": "KC_B_STR", "KC_C_S": "KC_C_STR", "KC_D_S": "KC_D_STR", 
+        "KC_A_DEFAULT": 0xFA,
+        "KC_A_S": "KC_A_STR", "KC_B_S": "KC_B_STR", "KC_C_S": "KC_C_STR", "KC_D_S": "KC_D_STR",
         "KC_E_S": "KC_E_STR", "KC_X_S": "KC_X_STR", "KC_Y_S": "KC_Y_STR", "KC_Z_S": "KC_Z_STR",
         "KC_LCTL_S": "KC_LCTL_STR", "KC_NO_S": "KC_NO_STR", "KC_A_DEFAULT_S": "KC_A_DEFAULT_STR",
         0x04: "KC_A_S", 0x05: "KC_B_S", 0x06: "KC_C_S", 0x07: "KC_D_S", 0x08: "KC_E_S", 0x1B: "KC_X_S", 0x1C: "KC_Y_S", 0x1D: "KC_Z_S",
@@ -45,27 +45,27 @@ describe('tapdance_edit.js command tests', () => {
     function mockKeyParseImplementation(keyDefStr) {
         if (spyKeyParseCalls) spyKeyParseCalls.push(keyDefStr);
         if (keyDefStr === "KC_INVALID") return undefined;
-        if (keyDefStr.toUpperCase() === "UNKNOWN_TAPDANCE_ACTION_FORMAT") { 
+        if (keyDefStr.toUpperCase() === "UNKNOWN_TAPDANCE_ACTION_FORMAT") {
             throw new Error(`Unknown or invalid action format in tapdance sequence: "${keyDefStr}"`);
         }
-        return mockKeyDb[keyDefStr] !== undefined ? mockKeyDb[keyDefStr] : 0xF1; 
+        return mockKeyDb[keyDefStr] !== undefined ? mockKeyDb[keyDefStr] : 0xF1;
     }
 
     function mockKeyStringifyImplementation(keyCode) {
         if (spyKeyStringifyCalls) spyKeyStringifyCalls.push(keyCode);
-        return mockKeyDb[keyCode] || `STR(${keyCode})`; 
+        return mockKeyDb[keyCode] || `STR(${keyCode})`;
     }
 
     function setupTestEnvironment(
-        mockKbinfoInitial = {}, 
-        vialMethodOverrides = {}, 
-        vialTapdanceOverrides = {}, 
+        mockKbinfoInitial = {},
+        vialMethodOverrides = {},
+        vialTapdanceOverrides = {},
         vialKbMethodOverrides = {}
     ) {
         mockUsb = { list: () => [{ path: 'mockpath' }], open: async () => true, close: () => {} };
-        
+
         let initialTdsProcessed;
-        const tempKeyMockForSetup = { 
+        const tempKeyMockForSetup = {
             parse: (s) => mockKeyDb[s] !== undefined ? mockKeyDb[s] : 0xF0,
             stringify: (c) => mockKeyDb[c] || `STR_SETUP(${c})`
         };
@@ -78,7 +78,7 @@ describe('tapdance_edit.js command tests', () => {
                 doubletap: tempKeyMockForSetup.stringify(typeof td.doubletap === 'string' ? tempKeyMockForSetup.parse(td.doubletap) : (td.doubletap || 0x00)),
                 taphold: tempKeyMockForSetup.stringify(typeof td.taphold === 'string' ? tempKeyMockForSetup.parse(td.taphold) : (td.taphold || 0x00)),
             }));
-        } else { 
+        } else {
             initialTdsProcessed = [
                 { tdid: 0, tap: tempKeyMockForSetup.stringify(mockKeyDb["KC_A_DEFAULT"]), hold: tempKeyMockForSetup.stringify(0x00), doubletap: tempKeyMockForSetup.stringify(mockKeyDb["KC_B"]), taphold: tempKeyMockForSetup.stringify(0x00), tapms: 200 },
                 { tdid: 1, tap: tempKeyMockForSetup.stringify(mockKeyDb["KC_C"]), hold: tempKeyMockForSetup.stringify(mockKeyDb["KC_D"]), doubletap: tempKeyMockForSetup.stringify(0x00), taphold: tempKeyMockForSetup.stringify(mockKeyDb["KC_E"]), tapms: 150 }
@@ -87,66 +87,74 @@ describe('tapdance_edit.js command tests', () => {
 
         const defaultKbinfo = {
             tapdance_count: MAX_TAPDANCE_SLOTS_IN_TEST,
-            tapdances: initialTdsProcessed,                   
-            ...mockKbinfoInitial, 
+            tapdances: initialTdsProcessed,
+            ...mockKbinfoInitial,
         };
-        defaultKbinfo.tapdances = initialTdsProcessed; 
-        
+        defaultKbinfo.tapdances = initialTdsProcessed;
+
         if (mockKbinfoInitial.tapdances && mockKbinfoInitial.tapdance_count === undefined) {
             defaultKbinfo.tapdance_count = Math.max(initialTdsProcessed.length, MAX_TAPDANCE_SLOTS_IN_TEST);
         }
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     tapdance_count: defaultKbinfo.tapdance_count,
                     tapdances: JSON.parse(JSON.stringify(defaultKbinfo.tapdances)),
-                    macros_size: 1024 
+                    macros_size: 1024
                 });
             }
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        
+
         mockVialTapdance = {
             push: async (kbinfo, tdid) => {
-                spyVialTapdancePushKbinfo = JSON.parse(JSON.stringify(kbinfo)); 
+                spyVialTapdancePushKbinfo = JSON.parse(JSON.stringify(kbinfo));
                 spyVialTapdancePushTdid = tdid;
             }, ...vialTapdanceOverrides
         };
-        mockVialKb = { 
+        mockVialKb = {
             saveTapDances: async () => spyVialKbSaveTapDancesCalled = true,
             ...vialKbMethodOverrides
         };
-     
+
         mockKey = { parse: mockKeyParseImplementation, stringify: mockKeyStringifyImplementation };
-        
-        spyKeyParseCalls = []; 
+
+        spyKeyParseCalls = [];
         spyKeyStringifyCalls = [];
         spyVialTapdancePushKbinfo = null;
         spyVialTapdancePushTdid = null;
         spyVialKbSaveTapDancesCalled = false;
-        consoleLogOutput = []; 
+        consoleLogOutput = [];
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
         sandbox = vm.createContext({
-            USB: mockUsb, Vial: { ...mockVial, tapdance: mockVialTapdance, kb: mockVialKb }, 
+            USB: mockUsb, Vial: { ...mockVial, tapdance: mockVialTapdance, kb: mockVialKb },
             KEY: mockKey, fs: {}, runInitializers: () => {},
-            MAX_MACRO_SLOTS: MAX_TAPDANCE_SLOTS_IN_TEST, 
-            DEFAULT_TAPPING_TERM: DEFAULT_TAPPING_TERM_IN_LIB, 
-            KC_NO_VALUE: KC_NO_VALUE_IN_LIB,         
+            MAX_MACRO_SLOTS: MAX_TAPDANCE_SLOTS_IN_TEST,
+            DEFAULT_TAPPING_TERM: DEFAULT_TAPPING_TERM_IN_LIB,
+            KC_NO_VALUE: KC_NO_VALUE_IN_LIB,
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')), 
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
             process: {
                 get exitCode() { return mockProcessExitCode; },
                 set exitCode(val) { mockProcessExitCode = val; }
-            }
+            },
+            // Mock device selector function for tests
+            getDeviceSelector: () => null
         });
+
+        // Load common utilities first
+        loadScriptInContext('lib/common/device-selection.js', sandbox);
+        loadScriptInContext('lib/common/command-utils.js', sandbox);
+
+        // Then load the tapdance script
         loadScriptInContext('lib/tapdance_edit.js', sandbox);
     }
 
@@ -158,29 +166,29 @@ describe('tapdance_edit.js command tests', () => {
         // setupTestEnvironment() called by beforeEach uses default tapdances
         const tapdanceIdToEdit = "0";
         const newSequence = "TAP(KC_X),HOLD(KC_Y),TERM(100)";
-        
+
         await sandbox.global.runEditTapdance(tapdanceIdToEdit, newSequence, {});
 
         assert.deepStrictEqual(spyKeyParseCalls, ["KC_X", "KC_Y"], "KEY.parse calls incorrect.");
-        assert.deepStrictEqual(spyKeyStringifyCalls, 
-            [mockKeyDb["KC_X"], mockKeyDb["KC_Y"], KC_NO_VALUE_IN_LIB, KC_NO_VALUE_IN_LIB], 
+        assert.deepStrictEqual(spyKeyStringifyCalls,
+            [mockKeyDb["KC_X"], mockKeyDb["KC_Y"], KC_NO_VALUE_IN_LIB, KC_NO_VALUE_IN_LIB],
             "KEY.stringify calls incorrect."
         );
         assert.ok(spyVialTapdancePushKbinfo, "Vial.tapdance.push was not called.");
         assert.strictEqual(spyVialTapdancePushTdid, 0, "tdid passed to push is incorrect.");
-        
+
         const editedTd = spyVialTapdancePushKbinfo.tapdances.find(td => td && td.tdid === 0);
         assert.ok(editedTd, "Edited tapdance (tdid 0) not found in pushed data.");
-        
-        assert.strictEqual(editedTd.tap, mockKeyDb[mockKeyDb["KC_X"]]); 
-        assert.strictEqual(editedTd.hold, mockKeyDb[mockKeyDb["KC_Y"]]); 
+
+        assert.strictEqual(editedTd.tap, mockKeyDb[mockKeyDb["KC_X"]]);
+        assert.strictEqual(editedTd.hold, mockKeyDb[mockKeyDb["KC_Y"]]);
         assert.strictEqual(editedTd.doubletap, mockKeyDb[KC_NO_VALUE_IN_LIB]);
         assert.strictEqual(editedTd.taphold, mockKeyDb[KC_NO_VALUE_IN_LIB]);
         assert.strictEqual(editedTd.tapms, 100);
-        
+
         const otherTd = spyVialTapdancePushKbinfo.tapdances.find(td => td && td.tdid === 1);
         assert.ok(otherTd, "Other tapdance (tdid 1) missing.");
-        assert.strictEqual(otherTd.tap, mockKeyDb[mockKeyDb["KC_C"]]); 
+        assert.strictEqual(otherTd.tap, mockKeyDb[mockKeyDb["KC_C"]]);
         assert.strictEqual(otherTd.hold, mockKeyDb[mockKeyDb["KC_D"]]);
         assert.strictEqual(otherTd.tapms, 150);
 
@@ -200,14 +208,14 @@ describe('tapdance_edit.js command tests', () => {
         assert.strictEqual(editedTd.doubletap, mockKeyDb[KC_NO_VALUE_IN_LIB]);
         assert.strictEqual(editedTd.taphold, mockKeyDb[KC_NO_VALUE_IN_LIB]);
         assert.strictEqual(editedTd.tapms, DEFAULT_TAPPING_TERM_IN_LIB); // Default term when cleared
-        
+
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: New tapdance sequence is empty.")));
         assert.isTrue(consoleLogOutput.some(line => line.includes("Tapdance 0 updated successfully.")));
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
     it('should error if tapdance ID to edit is not found', async () => {
-        await sandbox.global.runEditTapdance("99", "TAP(KC_A)", {}); 
+        await sandbox.global.runEditTapdance("99", "TAP(KC_A)", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Tapdance with ID 99 not found. Cannot edit.")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
@@ -246,8 +254,8 @@ describe('tapdance_edit.js command tests', () => {
     });
 
     it('should error if Vial.load fails to populate tapdance data', async () => {
-        setupTestEnvironment({}, { load: async (kbinfoRef) => { 
-            kbinfoRef.tapdances = undefined; kbinfoRef.tapdance_count = undefined; 
+        setupTestEnvironment({}, { load: async (kbinfoRef) => {
+            kbinfoRef.tapdances = undefined; kbinfoRef.tapdance_count = undefined;
         }});
         await sandbox.global.runEditTapdance("0", "TAP(KC_A)", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Tapdance data not fully populated by Vial functions.")));
@@ -257,22 +265,22 @@ describe('tapdance_edit.js command tests', () => {
     it('should handle error during Vial.tapdance.push', async () => {
         setupTestEnvironment({}, {}, { push: async () => { throw new Error("Push Failed TD Edit"); } });
         await sandbox.global.runEditTapdance("0", "TAP(KC_A)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Push Failed TD Edit")));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Operation failed: Push Failed TD Edit")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.kb.saveTapDances', async () => {
         setupTestEnvironment({}, {}, {}, { saveTapDances: async () => { throw new Error("Save TD Edit Failed"); } });
         await sandbox.global.runEditTapdance("0", "TAP(KC_A)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Save TD Edit Failed")));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Operation failed: Save TD Edit Failed")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should warn if Vial.kb.saveTapDances is missing', async () => {
-        setupTestEnvironment({}, {}, {}, { saveTapDances: undefined }); 
+        setupTestEnvironment({}, {}, {}, { saveTapDances: undefined });
         await sandbox.global.runEditTapdance("0", "TAP(KC_A)", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Tapdance 0 updated successfully.")));
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
-        assert.strictEqual(mockProcessExitCode, 0); 
+        assert.strictEqual(mockProcessExitCode, 0);
     });
 });

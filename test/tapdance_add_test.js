@@ -1,7 +1,7 @@
 const { assert } = require('chai'); // Switched to Chai's assert
 const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 
 const MAX_TAPDANCE_SLOTS_IN_TEST = 4;
 
@@ -14,17 +14,17 @@ function loadScriptInContext(scriptPath, context) {
 describe('tapdance_add.js command tests', () => {
     let sandbox;
     let mockUsb;
-    let mockVial; 
-    let mockVialTapdance; 
-    let mockVialKb;    
-    let mockKey;    
+    let mockVial;
+    let mockVialTapdance;
+    let mockVialKb;
+    let mockKey;
     let consoleLogOutput;
-    let consoleErrorOutput; 
+    let consoleErrorOutput;
     let mockProcessExitCode;
 
     // Spy variables
     let spyKeyParseCalls;
-    let spyKeyStringifyCalls; 
+    let spyKeyStringifyCalls;
     let spyVialTapdancePushKbinfo;
     let spyVialTapdancePushTdid;
     let spyVialKbSaveTapDancesCalled;
@@ -32,9 +32,9 @@ describe('tapdance_add.js command tests', () => {
     const mockKeyDb = {
         "KC_A": 0x04, "KC_B": 0x05, "KC_C": 0x06, "KC_D": 0x07, "KC_E": 0x08, "KC_X": 0x1B,
         "KC_LCTL": 0xE0, "KC_NO": 0x00, "KC_NONE": 0x00, "0x0000":0x00,
-        "KC_A_S": "KC_A_STR", "KC_B_S": "KC_B_STR", "KC_C_S": "KC_C_STR", "KC_D_S": "KC_D_STR", 
+        "KC_A_S": "KC_A_STR", "KC_B_S": "KC_B_STR", "KC_C_S": "KC_C_STR", "KC_D_S": "KC_D_STR",
         "KC_E_S": "KC_E_STR", "KC_X_S": "KC_X_STR",
-        "KC_LCTL_S": "KC_LCTL_STR", "KC_NO_S": "KC_NO_STR", 
+        "KC_LCTL_S": "KC_LCTL_STR", "KC_NO_S": "KC_NO_STR",
         0x04: "KC_A_S", 0x05: "KC_B_S", 0x06: "KC_C_S", 0x07: "KC_D_S", 0x08: "KC_E_S", 0x1B: "KC_X_S",
         0xE0: "KC_LCTL_S", 0x00: "KC_NO_S"
     };
@@ -42,7 +42,7 @@ describe('tapdance_add.js command tests', () => {
     function mockKeyParseImplementation(keyDefStr) {
         if (spyKeyParseCalls) spyKeyParseCalls.push(keyDefStr);
         if (keyDefStr === "KC_INVALID") return undefined;
-        if (keyDefStr.toUpperCase() === "UNKNOWN_TAPDANCE_ACTION_FORMAT") { 
+        if (keyDefStr.toUpperCase() === "UNKNOWN_TAPDANCE_ACTION_FORMAT") {
             throw new Error(`Unknown or invalid action format in tapdance sequence: "${keyDefStr}"`);
         }
         return mockKeyDb[keyDefStr] !== undefined ? mockKeyDb[keyDefStr] : 0x01;
@@ -54,19 +54,19 @@ describe('tapdance_add.js command tests', () => {
     }
 
     function setupTestEnvironment(
-        mockKbinfoInitial = {}, 
-        vialMethodOverrides = {}, 
-        vialTapdanceOverrides = {}, 
+        mockKbinfoInitial = {},
+        vialMethodOverrides = {},
+        vialTapdanceOverrides = {},
         vialKbMethodOverrides = {}
     ) {
         mockUsb = { list: () => [{ path: 'mockpath' }], open: async () => true, close: () => {} };
-        
+
         let initialTdsProcessed;
         if (mockKbinfoInitial.tapdances) {
             const tempSpyStringifyForSetup = [];
             const tempSpyParseForSetup = [];
             const tempKeyMockForSetup = {
-                parse: (s) => {tempSpyParseForSetup.push(s); return mockKeyDb[s] !== undefined ? mockKeyDb[s] : 0x01;}, 
+                parse: (s) => {tempSpyParseForSetup.push(s); return mockKeyDb[s] !== undefined ? mockKeyDb[s] : 0x01;},
                 stringify: (c) => {tempSpyStringifyForSetup.push(c); return mockKeyDb[c] || `STR(${c})`;}
             };
             initialTdsProcessed = mockKbinfoInitial.tapdances.map(td => ({
@@ -82,70 +82,78 @@ describe('tapdance_add.js command tests', () => {
 
         const defaultKbinfo = {
             tapdance_count: MAX_TAPDANCE_SLOTS_IN_TEST,
-            tapdances: initialTdsProcessed,                   
-            ...mockKbinfoInitial, 
+            tapdances: initialTdsProcessed,
+            ...mockKbinfoInitial,
         };
-        defaultKbinfo.tapdances = initialTdsProcessed; 
-        
+        defaultKbinfo.tapdances = initialTdsProcessed;
+
         if (mockKbinfoInitial.tapdances && mockKbinfoInitial.tapdance_count === undefined) {
             defaultKbinfo.tapdance_count = Math.max(initialTdsProcessed.length, MAX_TAPDANCE_SLOTS_IN_TEST);
         }
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     tapdance_count: defaultKbinfo.tapdance_count,
                     tapdances: JSON.parse(JSON.stringify(defaultKbinfo.tapdances)),
-                    macros_size: 1024 
+                    macros_size: 1024
                 });
             }
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        
+
         spyVialTapdancePushKbinfo = null;
         spyVialTapdancePushTdid = null;
         mockVialTapdance = {
             push: async (kbinfo, tdid) => {
-                spyVialTapdancePushKbinfo = JSON.parse(JSON.stringify(kbinfo)); 
+                spyVialTapdancePushKbinfo = JSON.parse(JSON.stringify(kbinfo));
                 spyVialTapdancePushTdid = tdid;
             },
             ...vialTapdanceOverrides
         };
 
         spyVialKbSaveTapDancesCalled = false;
-        mockVialKb = { 
+        mockVialKb = {
             saveTapDances: async () => {
                 spyVialKbSaveTapDancesCalled = true;
             },
             ...vialKbMethodOverrides
         };
-     
+
         mockKey = { parse: mockKeyParseImplementation, stringify: mockKeyStringifyImplementation };
         mockProcessExitCode = undefined;
 
-        consoleLogOutput = []; 
+        consoleLogOutput = [];
         consoleErrorOutput = [];
-        spyKeyParseCalls = []; 
+        spyKeyParseCalls = [];
         spyKeyStringifyCalls = [];
 
         sandbox = vm.createContext({
-            USB: mockUsb, Vial: { ...mockVial, tapdance: mockVialTapdance, kb: mockVialKb }, 
+            USB: mockUsb, Vial: { ...mockVial, tapdance: mockVialTapdance, kb: mockVialKb },
             KEY: mockKey, fs: {}, runInitializers: () => {},
             MAX_MACRO_SLOTS: MAX_TAPDANCE_SLOTS_IN_TEST, // Note: lib might use MAX_MACRO_SLOTS for tapdance count
-            DEFAULT_TAPPING_TERM: 200, 
-            KC_NO_VALUE: 0x00,         
+            DEFAULT_TAPPING_TERM: 200,
+            KC_NO_VALUE: 0x00,
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')), 
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
             process: {
                 get exitCode() { return mockProcessExitCode; },
                 set exitCode(val) { mockProcessExitCode = val; }
-            }
+            },
+            // Mock device selector function for tests
+            getDeviceSelector: () => null
         });
+
+        // Load common utilities first
+        loadScriptInContext('lib/common/device-selection.js', sandbox);
+        loadScriptInContext('lib/common/command-utils.js', sandbox);
+
+        // Then load the tapdance script
         loadScriptInContext('lib/tapdance_add.js', sandbox);
     }
 
@@ -163,16 +171,16 @@ describe('tapdance_add.js command tests', () => {
         assert.deepStrictEqual(spyKeyStringifyCalls, [mockKeyDb["KC_A"], 0x00, 0x00, 0x00], "KEY.stringify calls mismatch.");
         assert.ok(spyVialTapdancePushKbinfo, "Vial.tapdance.push was not called.");
         assert.strictEqual(spyVialTapdancePushTdid, 0, "tdid passed to push is incorrect.");
-        
+
         const pushedTd = spyVialTapdancePushKbinfo.tapdances.find(td => td && td.tdid === 0);
         assert.ok(pushedTd, "Added tapdance (tdid 0) not found.");
-        
-        assert.strictEqual(pushedTd.tap, mockKeyDb[mockKeyDb["KC_A"]]); 
-        assert.strictEqual(pushedTd.hold, mockKeyDb[0x00]); 
+
+        assert.strictEqual(pushedTd.tap, mockKeyDb[mockKeyDb["KC_A"]]);
+        assert.strictEqual(pushedTd.hold, mockKeyDb[0x00]);
         assert.strictEqual(pushedTd.doubletap, mockKeyDb[0x00]);
         assert.strictEqual(pushedTd.taphold, mockKeyDb[0x00]);
         assert.strictEqual(pushedTd.tapms, 150);
-        
+
         assert.isTrue(spyVialKbSaveTapDancesCalled, "Vial.kb.saveTapDances not called.");
         assert.isTrue(consoleLogOutput.some(line => line.includes("Tapdance successfully added with ID 0.")));
         assert.strictEqual(mockProcessExitCode, 0);
@@ -182,7 +190,7 @@ describe('tapdance_add.js command tests', () => {
         const initialTds = [{ tdid: 0, tap: mockKeyDb["KC_X"], hold: 0x00, doubletap: 0x00, taphold: 0x00, tapms: 200 }];
         setupTestEnvironment({ tapdances: initialTds, tapdance_count: MAX_TAPDANCE_SLOTS_IN_TEST });
         const sequence = "TAP(KC_A),HOLD(KC_B),DOUBLE(KC_C),TAPHOLD(KC_D),TERM(250)";
-        
+
         await sandbox.global.runAddTapdance(sequence, {});
 
         assert.deepStrictEqual(spyKeyParseCalls, ["KC_A", "KC_B", "KC_C", "KC_D"]);
@@ -226,7 +234,7 @@ describe('tapdance_add.js command tests', () => {
     });
 
     it('should error if sequence has an invalid format', async () => {
-        const invalidActionString = "UNKNOWN_TAPDANCE_ACTION_FORMAT"; 
+        const invalidActionString = "UNKNOWN_TAPDANCE_ACTION_FORMAT";
         await sandbox.global.runAddTapdance(invalidActionString, {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Unknown or invalid action format in tapdance sequence: "${invalidActionString}"`)));
         assert.strictEqual(mockProcessExitCode, 1);
@@ -238,7 +246,7 @@ describe('tapdance_add.js command tests', () => {
             fullTds.push({ tdid: i, tap: mockKeyDb["KC_A"], hold:0x00, doubletap:0x00, taphold:0x00, tapms:200 });
         }
         setupTestEnvironment({ tapdances: fullTds, tapdance_count: MAX_TAPDANCE_SLOTS_IN_TEST });
-        await sandbox.global.runAddTapdance("TAP(KC_B)", {}); 
+        await sandbox.global.runAddTapdance("TAP(KC_B)", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("No empty tapdance slots available.")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
@@ -260,9 +268,9 @@ describe('tapdance_add.js command tests', () => {
     });
 
     it('should error if Vial.load fails to populate tapdance data', async () => {
-        setupTestEnvironment({}, { load: async (kbinfoRef) => { 
-            kbinfoRef.tapdances = undefined; 
-            kbinfoRef.tapdance_count = undefined; 
+        setupTestEnvironment({}, { load: async (kbinfoRef) => {
+            kbinfoRef.tapdances = undefined;
+            kbinfoRef.tapdance_count = undefined;
         }});
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Tapdance data not fully populated by Vial functions.")));
@@ -272,22 +280,22 @@ describe('tapdance_add.js command tests', () => {
     it('should handle error during Vial.tapdance.push', async () => {
         setupTestEnvironment({tapdances: []}, {}, { push: async () => { throw new Error("Push Failed TD"); } });
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Push Failed TD")));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Operation failed: Push Failed TD")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.kb.saveTapDances', async () => {
         setupTestEnvironment({tapdances: []}, {}, {}, { saveTapDances: async () => { throw new Error("Save TD Failed"); } });
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Save TD Failed")));
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Operation failed: Save TD Failed")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should warn if Vial.kb.saveTapDances is missing', async () => {
-        setupTestEnvironment({tapdances: []}, {}, {}, { saveTapDances: undefined }); 
+        setupTestEnvironment({tapdances: []}, {}, {}, { saveTapDances: undefined });
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
         assert.isTrue(consoleLogOutput.some(line => line.includes("Tapdance successfully added with ID 0.")));
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
-        assert.strictEqual(mockProcessExitCode, 0); 
+        assert.strictEqual(mockProcessExitCode, 0);
     });
 });

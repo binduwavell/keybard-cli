@@ -1,7 +1,7 @@
 const { assert } = require('chai'); // Switched to Chai's assert
 const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 
 function loadScriptInContext(scriptPath, context) {
     const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
@@ -13,9 +13,9 @@ describe('tapdance_get.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockVialKb; 
-    let mockKey;    
-    let mockFs; 
+    let mockVialKb;
+    let mockKey;
+    let mockFs;
     let consoleLogOutput;
     let consoleErrorOutput;
     let mockProcessExitCode;
@@ -27,7 +27,7 @@ describe('tapdance_get.js command tests', () => {
     const sampleTapdancesData = [
         { tdid: 0, tap: "KC_A", hold: "KC_NO", doubletap: "KC_B", taphold: "KC_NONE", tapms: 200 },
         { tdid: 1, tap: "KC_C", hold: "KC_D", doubletap: "0x00", taphold: "KC_E", tapms: 150 },
-        { tdid: 2, tap: "KC_F", hold: "KC_NO", doubletap: "KC_NO", taphold: "KC_NO", tapms: 0 } 
+        { tdid: 2, tap: "KC_F", hold: "KC_NO", doubletap: "KC_NO", taphold: "KC_NO", tapms: 0 }
     ];
     const sampleTapdanceCount = sampleTapdancesData.length;
 
@@ -41,13 +41,13 @@ describe('tapdance_get.js command tests', () => {
 
         const defaultKbinfo = {
             tapdance_count: sampleTapdanceCount,
-            tapdances: JSON.parse(JSON.stringify(sampleTapdancesData)), 
-            ...mockKbinfoData 
+            tapdances: JSON.parse(JSON.stringify(sampleTapdancesData)),
+            ...mockKbinfoData
         };
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     tapdance_count: defaultKbinfo.tapdance_count,
                     tapdances: JSON.parse(JSON.stringify(defaultKbinfo.tapdances)),
@@ -55,8 +55,8 @@ describe('tapdance_get.js command tests', () => {
             }
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        
-        mockVialKb = {}; 
+
+        mockVialKb = {};
         mockKey = { /* KEY object exists */ };
 
         spyWriteFileSyncPath = null;
@@ -74,21 +74,29 @@ describe('tapdance_get.js command tests', () => {
 
         sandbox = vm.createContext({
             USB: mockUsb,
-            Vial: { ...mockVial, kb: mockVialKb }, 
-            KEY: mockKey, 
-            fs: mockFs, 
+            Vial: { ...mockVial, kb: mockVialKb },
+            KEY: mockKey,
+            fs: mockFs,
             runInitializers: () => {},
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')), 
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
             global: {},
             process: {
                 get exitCode() { return mockProcessExitCode; },
                 set exitCode(val) { mockProcessExitCode = val; }
-            }
+            },
+            // Mock device selector function for tests
+            getDeviceSelector: () => null
         });
+
+        // Load common utilities first
+        loadScriptInContext('lib/common/device-selection.js', sandbox);
+        loadScriptInContext('lib/common/command-utils.js', sandbox);
+
+        // Then load the tapdance script
         loadScriptInContext('lib/tapdance_get.js', sandbox);
     }
 
@@ -97,14 +105,14 @@ describe('tapdance_get.js command tests', () => {
     });
 
     it('should get tapdance in text format to console when it exists', async () => {
-        await sandbox.global.runGetTapdance("0", { format: 'text' }); 
+        await sandbox.global.runGetTapdance("0", { format: 'text' });
         const output = consoleLogOutput.join('\n');
         assert.include(output, "Tapdance 0: Tap(KC_A) DoubleTap(KC_B) Term(200ms)", `Output mismatch: ${output}`);
         assert.strictEqual(mockProcessExitCode, 0);
     });
 
     it('should get tapdance in JSON format to console when it exists', async () => {
-        await sandbox.global.runGetTapdance("1", { format: 'json' }); 
+        await sandbox.global.runGetTapdance("1", { format: 'json' });
         const expectedJson = JSON.stringify(sampleTapdancesData[1], null, 2);
         assert.strictEqual(consoleLogOutput.join('\n'), expectedJson, "JSON output mismatch.");
         assert.strictEqual(mockProcessExitCode, 0);
@@ -130,7 +138,7 @@ describe('tapdance_get.js command tests', () => {
     });
 
     it('should error if tapdance ID is not found', async () => {
-        await sandbox.global.runGetTapdance("99", {}); 
+        await sandbox.global.runGetTapdance("99", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Tapdance with ID 99 not found.")), `Error for ID not found missing. Log: ${consoleErrorOutput}`);
         assert.strictEqual(mockProcessExitCode, 1);
     });
@@ -162,9 +170,9 @@ describe('tapdance_get.js command tests', () => {
     });
 
     it('should error if Vial.load fails to populate tapdance data', async () => {
-        setupTestEnvironment({}, { load: async (kbinfoRef) => { 
-            kbinfoRef.tapdances = undefined; 
-            kbinfoRef.tapdance_count = undefined; 
+        setupTestEnvironment({}, { load: async (kbinfoRef) => {
+            kbinfoRef.tapdances = undefined;
+            kbinfoRef.tapdance_count = undefined;
         }});
         await sandbox.global.runGetTapdance("0", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Tapdance data not fully populated by Vial functions.")));
@@ -175,10 +183,10 @@ describe('tapdance_get.js command tests', () => {
         const outputPath = "tapdance_error.txt";
         const expectedFileErrorMessage = "Disk full";
         mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
-        
-        await sandbox.global.runGetTapdance("0", { outputFile: outputPath }); 
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing tapdance data to file "${outputPath}": ${expectedFileErrorMessage}`)));
+        await sandbox.global.runGetTapdance("0", { outputFile: outputPath });
+
+        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing tapdance list to file "${outputPath}": ${expectedFileErrorMessage}`)));
         assert.isTrue(consoleLogOutput.some(line => line.includes("Tapdance 0 Data (fallback due to file write error):")));
         assert.isTrue(consoleLogOutput.some(line => line.includes("Tapdance 0: Tap(KC_A) DoubleTap(KC_B) Term(200ms)")));
         assert.strictEqual(mockProcessExitCode, 1);
