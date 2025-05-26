@@ -34,10 +34,7 @@ describe('command-utils.js tests', () => {
             USB: mockUSB,
             Vial: mockVial,
             runInitializers: () => {},
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/common/command-utils.js']);
 
         // Add device selection to global after sandbox creation

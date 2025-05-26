@@ -104,10 +104,7 @@ describe('macro_edit.js command tests', () => {
             USB: mockUsb, Vial: { ...mockVial, macro: mockVialMacro, kb: mockVialKb },
             KEY: mockKey, fs: {}, runInitializers: () => {},
             MAX_MACRO_SLOTS: MAX_MACRO_SLOTS_IN_TEST,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/macro_edit.js']);
     }
 
@@ -162,7 +159,7 @@ describe('macro_edit.js command tests', () => {
         assert.ok(editedMacro, "Edited macro (mid 0) not found.");
         assert.deepStrictEqual(editedMacro.actions, [], "Macro actions not cleared.");
 
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: New macro sequence is empty. This will clear the macro.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: New macro sequence is empty. This will clear the macro.")));
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -234,7 +231,7 @@ describe('macro_edit.js command tests', () => {
         setupTestEnvironment({}, {}, {}, { saveMacros: undefined });
         await sandbox.global.runEditMacro("0", "KC_X", {});
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found.")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

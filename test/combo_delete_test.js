@@ -91,10 +91,7 @@ describe('combo_delete.js command tests', () => {
             runInitializers: () => {},
             MAX_COMBO_SLOTS_IN_LIB: MAX_COMBO_SLOTS_IN_TEST,
             KC_NO_VALUE: KC_NO_VALUE,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/combo_delete.js']);
     }
 

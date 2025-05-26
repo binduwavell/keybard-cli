@@ -129,14 +129,39 @@ sandbox = createSandboxWithDeviceSelection({
 ```
 
 ### Tasks:
-- [ ] Update `test/command_utils_test.js` to use spread testState syntax
-- [ ] Update `test/tapdance_add_test.js` to use spread testState syntax
-- [ ] Update `test/combo_add_test.js` to use spread testState syntax
-- [ ] Update `test/combo_delete_test.js` to use spread testState syntax
-- [ ] Update `test/macro_add_test.js` to use spread testState syntax
-- [ ] Update `test/key_override_add_test.js` to use spread testState syntax
-- [ ] Audit remaining test files for manual testState property specification and add tasks below this task for each file that needs to be updated
-- [ ] Remove any redundant local console output arrays (e.g., `consoleInfoOutput`, `consoleWarnOutput`) that are now included in testState
+- [x] Update `test/command_utils_test.js` to use spread testState syntax
+- [x] Update `test/tapdance_add_test.js` to use spread testState syntax
+- [x] Update `test/combo_add_test.js` to use spread testState syntax
+- [x] Update `test/combo_delete_test.js` to use spread testState syntax
+- [x] Update `test/macro_add_test.js` to use spread testState syntax
+- [x] Update `test/key_override_add_test.js` to use spread testState syntax
+- [x] Audit remaining test files for manual testState property specification and add tasks below this task for each file that needs to be updated
+- [x] Update `test/macro_delete_test.js` to use spread testState syntax
+- [x] Update `test/qmk_setting_get_test.js` to use spread testState syntax
+- [x] Update `test/keymap_download_test.js` to use spread testState syntax
+- [x] Update `test/macro_get_test.js` to use spread testState syntax
+- [x] Update `test/qmk_setting_set_test.js` to use spread testState syntax
+- [x] Update `test/keymap_upload_test.js` to use spread testState syntax
+- [x] Update `test/macro_edit_test.js` to use spread testState syntax
+- [x] Update `test/keyboard_info_test.js` to use spread testState syntax
+- [x] Update `test/keymap_get_test.js` to use spread testState syntax
+- [x] Update `test/tapdance_edit_test.js` to use spread testState syntax
+- [x] Update `test/tapdance_delete_test.js` to use spread testState syntax
+- [x] Update `test/key_override_delete_test.js` to use spread testState syntax
+- [x] Update `test/key_override_edit_test.js` to use spread testState syntax
+- [x] Update `test/combo_edit_test.js` to use spread testState syntax
+- [x] Update `test/combo_get_test.js` to use spread testState syntax
+- [x] Update `test/combos_list_test.js` to use spread testState syntax
+- [x] Update `test/macro_list_test.js` to use spread testState syntax
+- [x] Update `test/tapdance_get_test.js` to use spread testState syntax
+- [x] Update `test/tapdance_list_test.js` to use spread testState syntax
+- [x] Update `test/combo_list_test.js` to use spread testState syntax
+- [x] Update `test/key_overrides_list_test.js` to use spread testState syntax
+- [x] Update `test/qmk_settings_list_test.js` to use spread testState syntax
+- [x] Update `test/keymap_set_test.js` to use spread testState syntax
+- [x] Update `test/keyboard_download_test.js` to use spread testState syntax
+- [x] Update `test/keyboard_upload_test.js` to use spread testState syntax
+- [x] Remove any redundant local console output arrays (e.g., `consoleInfoOutput`, `consoleWarnOutput`) that are now included in testState
 
 ## Priority 2: USB Mock Standardization
 

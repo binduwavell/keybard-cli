@@ -34,10 +34,7 @@ describe('keyboard_info.js command tests', () => {
             Vial: mockVial,
             fs: mockFs,
             runInitializers: () => {},
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/keyboard_info.js']);
     }
 

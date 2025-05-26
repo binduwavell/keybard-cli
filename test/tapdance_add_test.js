@@ -129,10 +129,7 @@ describe('tapdance_add.js command tests', () => {
             MAX_MACRO_SLOTS: MAX_TAPDANCE_SLOTS_IN_TEST, // Note: lib might use MAX_MACRO_SLOTS for tapdance count
             DEFAULT_TAPPING_TERM: 200,
             KC_NO_VALUE: 0x00,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/common/command-utils.js', 'lib/tapdance_add.js']);
     }
 
@@ -274,7 +271,7 @@ describe('tapdance_add.js command tests', () => {
         setupTestEnvironment({tapdances: []}, {}, {}, { saveTapDances: undefined });
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Tapdance successfully added with ID 0.")));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

@@ -63,10 +63,7 @@ describe('keymap_set.js command tests', () => {
             KEY: mockKey,
             fs: {},
             runInitializers: () => {},
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/keymap_set.js']);
     }
 

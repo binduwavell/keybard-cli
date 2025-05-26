@@ -10,8 +10,6 @@ describe('keyboard_upload.js command tests', () => {
     let mockPath;
     let mockKey;
     let testState;
-    let consoleInfoOutput;
-    let consoleWarnOutput;
 
     // Spies
     let spyFsReadFileSync;

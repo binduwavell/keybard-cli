@@ -50,10 +50,7 @@ describe('qmk_setting_get.js command tests', () => {
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/qmk_setting_get.js']);
     }
 

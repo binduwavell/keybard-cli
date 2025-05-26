@@ -98,10 +98,7 @@ describe('combo_edit.js command tests', () => {
             DEFAULT_COMBO_TERM: DEFAULT_COMBO_TERM,
             MAX_COMBO_TRIGGER_KEYS: 4,
             KC_NO_VALUE: KC_NO_VALUE,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/combo_edit.js']);
     }
 

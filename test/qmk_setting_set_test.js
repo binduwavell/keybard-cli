@@ -86,10 +86,7 @@ describe('qmk_setting_set.js command tests', () => {
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb, Vial: mockVial, KEY: mockKey, fs: mockFs,
             runInitializers: () => {},
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/qmk_setting_set.js']);
     }
 
@@ -168,7 +165,7 @@ describe('qmk_setting_set.js command tests', () => {
             setupTestEnvironment({}, { hasVialSetQmkSetting: true }); // No saveQmkSettings or saveSettings
             await sandbox.global.runSetQmkSetting("noSaveTest", "true", {});
             assert.ok(spyVialSetQmkSetting);
-            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Setting 'noSaveTest' might have been applied but no standard save function")));
+            assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Setting 'noSaveTest' might have been applied but no standard save function")));
             assert.strictEqual(testState.mockProcessExitCode, 0);
         });
     });
@@ -212,7 +209,7 @@ describe('qmk_setting_set.js command tests', () => {
         it('should error in fallback if no push function is available', async () => {
             setupTestEnvironment({ qmk_settings: { "setting": "val" } }); // No push functions configured
             await sandbox.global.runSetQmkSetting("setting", "newVal", {});
-            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Could not find a settings push function")));
+            assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Could not find a settings push function")));
             assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Could not set QMK setting "setting". No suitable push mechanism found for load-modify-push.')));
             assert.strictEqual(testState.mockProcessExitCode, 1);
         });

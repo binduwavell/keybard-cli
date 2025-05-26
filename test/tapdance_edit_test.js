@@ -113,10 +113,7 @@ describe('tapdance_edit.js command tests', () => {
             MAX_MACRO_SLOTS: MAX_TAPDANCE_SLOTS_IN_TEST,
             DEFAULT_TAPPING_TERM: DEFAULT_TAPPING_TERM_IN_LIB,
             KC_NO_VALUE: KC_NO_VALUE_IN_LIB,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/common/command-utils.js', 'lib/tapdance_edit.js']);
     }
 
@@ -171,7 +168,7 @@ describe('tapdance_edit.js command tests', () => {
         assert.strictEqual(editedTd.taphold, mockKeyDb[KC_NO_VALUE_IN_LIB]);
         assert.strictEqual(editedTd.tapms, DEFAULT_TAPPING_TERM_IN_LIB); // Default term when cleared
 
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: New tapdance sequence is empty.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: New tapdance sequence is empty.")));
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Tapdance 0 updated successfully.")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -242,7 +239,7 @@ describe('tapdance_edit.js command tests', () => {
         setupTestEnvironment({}, {}, {}, { saveTapDances: undefined });
         await sandbox.global.runEditTapdance("0", "TAP(KC_A)", {});
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Tapdance 0 updated successfully.")));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

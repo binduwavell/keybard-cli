@@ -79,10 +79,7 @@ describe('keyboard_download.js command tests', () => {
             fs: mockFs,
             path: mockPath,
             runInitializers: () => {},
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/keyboard_download.js']);
     }
 
@@ -133,7 +130,7 @@ describe('keyboard_download.js command tests', () => {
         await sandbox.global.runDownloadFile("output.svl", {});
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
         assert.deepStrictEqual(savedData.keymap[0], numericKeymap);
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -146,7 +143,7 @@ describe('keyboard_download.js command tests', () => {
         await sandbox.global.runDownloadFile("output.svl", {});
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
-        assert.isFalse(testState.consoleErrorOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
+        assert.isFalse(testState.consoleWarnOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
         assert.deepStrictEqual(savedData.keymap[0], stringKeymap);
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -158,9 +155,9 @@ describe('keyboard_download.js command tests', () => {
 
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Keymap data or dimensions not found")));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Macros data not found")));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Key_overrides data not found")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Keymap data or dimensions not found")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Macros data not found")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Key_overrides data not found")));
         assert.isUndefined(savedData.keymap);
         assert.isUndefined(savedData.macros);
         assert.isUndefined(savedData.key_overrides);
@@ -219,7 +216,7 @@ describe('keyboard_download.js command tests', () => {
         const mockData = { keymap: [[]] }; // layers/rows/cols will be undefined
         setupTestEnvironment({ mockKbinfoData: mockData });
         await sandbox.global.runDownloadFile("output.svl", {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Keymap data or dimensions not found in kbinfo.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Keymap data or dimensions not found in kbinfo.")));
         assert.strictEqual(testState.mockProcessExitCode, 0); // Should still proceed and output what it can
     });
 });

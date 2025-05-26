@@ -58,10 +58,7 @@ describe('tapdances_list.js command tests', () => {
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/common/command-utils.js', 'lib/tapdance_list.js']);
     }
 

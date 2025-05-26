@@ -89,10 +89,7 @@ describe('key_override_add.js command tests', () => {
             fs: {},
             runInitializers: () => {},
             MAX_KEY_OVERRIDE_SLOTS: MAX_KEY_OVERRIDE_SLOTS_IN_TEST,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/key_override_add.js']);
     }
 
@@ -229,7 +226,7 @@ describe('key_override_add.js command tests', () => {
         setupTestEnvironment({}, {}, {}, { saveKeyOverrides: undefined, save: undefined });
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0")));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
         assert.isFalse(spyVialKbSaveKeyOverridesCalled);
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });

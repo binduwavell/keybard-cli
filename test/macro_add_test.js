@@ -90,10 +90,7 @@ describe('macro_add.js command tests', () => {
             fs: {},
             runInitializers: () => {},
             MAX_MACRO_SLOTS: MAX_MACRO_SLOTS_IN_TEST,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/macro_add.js']);
     }
 
@@ -262,10 +259,7 @@ describe('macro_add.js command tests', () => {
 
         sandbox = createSandboxWithDeviceSelection({
             // Missing USB, Vial, etc.
-            consoleLogOutput: localTestState.consoleLogOutput,
-            consoleErrorOutput: localTestState.consoleErrorOutput,
-            mockProcessExitCode: localTestState.mockProcessExitCode,
-            setMockProcessExitCode: localTestState.setMockProcessExitCode
+            ...localTestState
         }, ['lib/macro_add.js']);
 
         // Check if the function was exposed despite missing objects
@@ -314,7 +308,7 @@ describe('macro_add.js command tests', () => {
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found. Changes might be volatile or rely on firmware auto-save.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found. Changes might be volatile or rely on firmware auto-save.")));
         assert.strictEqual(testState.mockProcessExitCode, 0); // Should still succeed
     });
 

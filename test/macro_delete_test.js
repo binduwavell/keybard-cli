@@ -83,10 +83,7 @@ describe('macro_delete.js command tests', () => {
             fs: {},
             runInitializers: () => {},
             MAX_MACRO_SLOTS: MAX_MACRO_SLOTS_IN_TEST,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/macro_delete.js']);
     }
 
@@ -175,7 +172,7 @@ describe('macro_delete.js command tests', () => {
         setupTestEnvironment({}, {}, {}, { saveMacros: undefined });
         await sandbox.global.runDeleteMacro("0", {});
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro 0 deleted successfully (actions cleared).")));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found.")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

@@ -75,10 +75,7 @@ describe('key_override_delete.js command tests', () => {
             KEY: mockKey,
             fs: {},
             runInitializers: () => {},
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/key_override_delete.js']);
     }
 
@@ -213,7 +210,7 @@ describe('key_override_delete.js command tests', () => {
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
         assert.isFalse(spyVialKbSaveKeyOverridesCalled);
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });

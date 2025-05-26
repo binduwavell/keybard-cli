@@ -92,10 +92,7 @@ describe('key_override_edit.js command tests', () => {
             KEY: mockKey,
             fs: {},
             runInitializers: () => {},
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/key_override_edit.js']);
     }
 
@@ -252,7 +249,7 @@ describe('key_override_edit.js command tests', () => {
             { saveKeyOverrides: undefined, save: undefined });
         await sandbox.global.runEditKeyOverride("0", "KC_A", "KC_B", {});
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override ID 0 successfully updated")));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
         assert.isFalse(spyVialKbSaveKeyOverridesCalled);
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });

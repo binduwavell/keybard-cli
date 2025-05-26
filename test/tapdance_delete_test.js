@@ -90,10 +90,7 @@ describe('tapdance_delete.js command tests', () => {
             runInitializers: () => {},
             DEFAULT_TAPPING_TERM_FOR_CLEAR: DEFAULT_TAPPING_TERM_FOR_CLEAR_IN_LIB,
             KC_NO_VALUE: KC_NO_VALUE_IN_LIB,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/common/command-utils.js', 'lib/tapdance_delete.js']);
     }
 
@@ -190,7 +187,7 @@ describe('tapdance_delete.js command tests', () => {
         await sandbox.global.runDeleteTapdance("0", {});
         const expectedLog = `Tapdance 0 deleted successfully (actions cleared, term set to ${DEFAULT_TAPPING_TERM_FOR_CLEAR_IN_LIB}ms).`;
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(expectedLog)));
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
+        assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
