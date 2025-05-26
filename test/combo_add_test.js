@@ -5,6 +5,7 @@ const {
     createBasicSandbox,
     createMockUSBSingleDevice,
     createMockKEY,
+    createMockVial,
     createTestState,
     loadScriptInContext
 } = require('./test-helpers');
@@ -64,8 +65,9 @@ describe('combo_add.js command tests', () => {
         };
 
         mockKbinfoCombos = [];
-        const defaultVialMethods = {
-            init: async (kbinfoRef) => { /* Minimal mock */ },
+
+        // Create custom load method that tracks combo changes
+        const customVialMethods = {
             load: async (kbinfoRef) => {
                 mockKbinfoCombos = JSON.parse(JSON.stringify(defaultKbinfo.combos));
                 Object.assign(kbinfoRef, {
@@ -74,9 +76,11 @@ describe('combo_add.js command tests', () => {
                     macros: kbinfoRef.macros || [],
                     macro_count: kbinfoRef.macro_count || 0,
                 });
-            }
+            },
+            ...vialMethodOverrides
         };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+
+        mockVial = createMockVial(defaultKbinfo, customVialMethods);
 
         spyVialComboPushCalled = false;
         mockVialCombo = {

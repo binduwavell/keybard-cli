@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState, createMockVial } = require('./test-helpers');
 
 describe('macro_get.js command tests', () => {
     let sandbox;
@@ -29,7 +29,7 @@ describe('macro_get.js command tests', () => {
             ...mockKbinfoData
         };
 
-        const defaultVialMethods = {
+        const customVialMethods = {
             init: async (kbinfoRef) => { /* Basic setup */ },
             load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
@@ -37,8 +37,19 @@ describe('macro_get.js command tests', () => {
                     macros: JSON.parse(JSON.stringify(defaultKbinfo.macros)),
                 });
             }
+        ,
+
+
+            ...vialMethodOverrides
+
+
         };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+
+
+        
+
+
+        mockVial = createMockVial(defaultKbinfo, customVialMethods);
 
         mockVialKb = {};
         mockKey = { /* KEY object exists, stringify/parse not directly used by get_macro.js logic */ };

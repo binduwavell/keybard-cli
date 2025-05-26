@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState, createMockVial } = require('./test-helpers');
 
 const MAX_MACRO_SLOTS_IN_TEST = 16;
 
@@ -68,7 +68,7 @@ describe('macro_edit.js command tests', () => {
             }));
         }
 
-        const defaultVialMethods = {
+        const customVialMethods = {
             init: async (kbinfoRef) => {},
             load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
@@ -77,8 +77,19 @@ describe('macro_edit.js command tests', () => {
                     macros_size: defaultKbinfo.macros_size
                 });
             }
+        ,
+
+
+            ...vialMethodOverrides
+
+
         };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+
+
+        
+
+
+        mockVial = createMockVial(defaultKbinfo, customVialMethods);
 
         spyVialMacroPushKbinfo = null;
         mockVialMacro = {

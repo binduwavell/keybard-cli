@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockVial, createTestState } = require('./test-helpers');
 
 describe('keymap_download.js command tests', () => {
     let sandbox;
@@ -27,7 +27,7 @@ describe('keymap_download.js command tests', () => {
             ...mockKbinfoData
         };
 
-        const defaultVialMethods = {
+        const customVialMethods = {
             init: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     rows: defaultKbinfo.rows,
@@ -43,9 +43,11 @@ describe('keymap_download.js command tests', () => {
                     cols: kbinfoRef.cols === undefined ? defaultKbinfo.cols : kbinfoRef.cols,
                     layers: kbinfoRef.layers === undefined ? defaultKbinfo.layers : kbinfoRef.layers,
                 });
-            }
+            },
+            ...vialMethodOverrides
         };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+
+        mockVial = createMockVial(defaultKbinfo, customVialMethods);
 
         mockVialKb = {};
         mockKey = { /* KEY object exists */ };

@@ -1,6 +1,6 @@
 // test/test_list_key_overrides.js
 const { assert } = require('chai');
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockVial, createTestState } = require('./test-helpers');
 
 describe('key_overrides_list.js command tests', () => {
     let sandbox;
@@ -36,16 +36,17 @@ describe('key_overrides_list.js command tests', () => {
             ...mockKbinfoInitial
         };
 
-        const defaultVialMethods = {
-            init: async (_kbinfoRef) => { /* Minimal mock */ },
+        const customVialMethods = {
             load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     key_override_count: defaultKbinfo.key_override_count,
                     key_overrides: JSON.parse(JSON.stringify(defaultKbinfo.key_overrides)),
                 });
-            }
+            },
+            ...vialMethodOverrides
         };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+
+        mockVial = createMockVial(defaultKbinfo, customVialMethods);
 
         mockKey = { stringify: mockKeyStringifyImplementation };
 

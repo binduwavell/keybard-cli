@@ -1,6 +1,6 @@
 // test/test_add_key_override.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockVial, createTestState } = require('./test-helpers');
 
 const MAX_KEY_OVERRIDE_SLOTS_IN_TEST = 8;
 
@@ -43,8 +43,7 @@ describe('key_override_add.js command tests', () => {
             ...mockKbinfoInitial
         };
 
-        const defaultVialMethods = {
-            init: async (kbinfoRef) => { /* Minimal mock */ },
+        const customVialMethods = {
             load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     key_override_count: defaultKbinfo.key_override_count,
@@ -52,9 +51,11 @@ describe('key_override_add.js command tests', () => {
                     macros: kbinfoRef.macros || [],
                     macro_count: kbinfoRef.macro_count || 0,
                 });
-            }
+            },
+            ...vialMethodOverrides
         };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+
+        mockVial = createMockVial(defaultKbinfo, customVialMethods);
 
         spyVialKeyOverridePushKbinfo = null;
         spyVialKeyOverridePushKoid = null;

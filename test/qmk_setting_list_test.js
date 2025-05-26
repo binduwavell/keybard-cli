@@ -1,6 +1,6 @@
 // test/test_list_qmk_settings.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState, createMockVial } = require('./test-helpers');
 
 describe('qmk_settings_list.js command tests', () => {
     let sandbox;

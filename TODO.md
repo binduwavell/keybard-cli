@@ -212,19 +212,19 @@ mockVial = createMockVial(defaultKbinfo, vialMethodOverrides);
 
 ### Tasks:
 - [x] Audit test files for manual Vial mock creation patterns, add each file as an incomplete task after this task indicating that we should Migrate identified files to use `createMockVial()` where appropriate
-- [ ] Migrate `test/combo_add_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/keymap_download_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/key_override_add_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/key_override_edit_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/key_override_list_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/macro_add_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/macro_delete_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/macro_edit_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/macro_get_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/qmk_setting_get_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/qmk_setting_list_test.js` to use `createMockVial()` where appropriate
-- [ ] Migrate `test/tapdance_add_test.js` to use `createMockVial()` where appropriate
-- [ ] Document any complex Vial mock requirements that need helper enhancements
+- [x] Migrate `test/combo_add_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/keymap_download_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/key_override_add_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/key_override_edit_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/key_override_list_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/macro_add_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/macro_delete_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/macro_edit_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/macro_get_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/qmk_setting_get_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/qmk_setting_list_test.js` to use `createMockVial()` where appropriate
+- [x] Migrate `test/tapdance_add_test.js` to use `createMockVial()` where appropriate
+- [x] Document any complex Vial mock requirements that need helper enhancements
 
 ## Priority 4: File System Mock Standardization
 
@@ -248,8 +248,19 @@ mockFs = createMockFS({ spyWriteCalls });
 ```
 
 ### Tasks:
-- [ ] Identify test files that manually create file system mocks, add each file as an incomplete task after this task indicating that we should
-Migrate to use `createMockFS()` helper
+- [x] Identify test files that manually create file system mocks, add each file as an incomplete task after this task indicating that we should Migrate to use `createMockFS()` helper
+- [ ] Migrate `test/combo_get_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/combo_list_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/keyboard_download_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/keyboard_upload_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/keymap_download_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/keymap_get_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/keymap_upload_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/macro_get_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/macro_list_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/qmk_setting_list_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/tapdance_get_test.js` to use `createMockFS()` helper
+- [ ] Migrate `test/tapdance_list_test.js` to use `createMockFS()` helper
 - [ ] Enhance `createMockFS()` if additional capabilities are needed
 
 ## Priority 5: Documentation and Guidelines

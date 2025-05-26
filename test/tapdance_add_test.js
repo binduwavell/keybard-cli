@@ -1,9 +1,5 @@
 const { assert } = require('chai');
-const {
-    createSandboxWithDeviceSelection,
-    createTestState,
-    createMockUSBSingleDevice
-} = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createTestState, createMockUSBSingleDevice, createMockVial } = require('./test-helpers');
 
 const MAX_TAPDANCE_SLOTS_IN_TEST = 4;
 
@@ -85,7 +81,7 @@ describe('tapdance_add.js command tests', () => {
             defaultKbinfo.tapdance_count = Math.max(initialTdsProcessed.length, MAX_TAPDANCE_SLOTS_IN_TEST);
         }
 
-        const defaultVialMethods = {
+        const customVialMethods = {
             init: async (kbinfoRef) => {},
             load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
@@ -94,8 +90,19 @@ describe('tapdance_add.js command tests', () => {
                     macros_size: 1024
                 });
             }
+        ,
+
+
+            ...vialMethodOverrides
+
+
         };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+
+
+        
+
+
+        mockVial = createMockVial(defaultKbinfo, customVialMethods);
 
         spyVialTapdancePushKbinfo = null;
         spyVialTapdancePushTdid = null;
