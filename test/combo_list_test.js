@@ -4,6 +4,7 @@ const {
     createMockUSBSingleDevice,
     createMockKEY,
     createMockVial,
+    createMockFS,
     createTestState
 } = require('./test-helpers');
 
@@ -17,8 +18,7 @@ describe('combos_list.js command tests', () => {
     let testState;
 
     // Spy variables
-    let spyWriteFileSyncPath;
-    let spyWriteFileSyncData;
+    let spyWriteCalls;
     let spyKeyStringifyCalls;
 
     const mockKeyDb = {
@@ -58,14 +58,10 @@ describe('combos_list.js command tests', () => {
         spyKeyStringifyCalls = [];
         mockKey = { stringify: mockKeyStringifyImplementation };
 
-        spyWriteFileSyncPath = null;
-        spyWriteFileSyncData = null;
-        mockFs = {
-            writeFileSync: (filepath, data) => {
-                spyWriteFileSyncPath = filepath;
-                spyWriteFileSyncData = data;
-            }
-        };
+        spyWriteCalls = [];
+        mockFs = createMockFS({
+            spyWriteCalls: spyWriteCalls
+        });
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -114,9 +110,9 @@ describe('combos_list.js command tests', () => {
     it('should list combos in text format to file', async () => {
         const outputPath = "combos.txt";
         await sandbox.global.runListCombos({ format: 'text', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
-        assert.include(spyWriteFileSyncData, `Found ${sampleComboCount} active combo(s) (total slots`);
-        assert.include(spyWriteFileSyncData, "Combo 1: KC_D -> KC_E");
+        assert.strictEqual(mockFs.lastWritePath, outputPath, "Filepath mismatch.");
+        assert.include(mockFs.lastWriteData, `Found ${sampleComboCount} active combo(s) (total slots`);
+        assert.include(mockFs.lastWriteData, "Combo 1: KC_D -> KC_E");
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Combo list written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -124,7 +120,7 @@ describe('combos_list.js command tests', () => {
     it('should list combos in JSON format to file', async () => {
         const outputPath = "combos.json";
         await sandbox.global.runListCombos({ format: 'json', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath);
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
         const expectedJsonObjects = sampleCombos.map((combo, idx) => {
             // For JSON output, include ALL trigger keys (even KC_NO)
             const triggerKeys = combo.slice(0, 4);
@@ -139,7 +135,7 @@ describe('combos_list.js command tests', () => {
             };
         });
         const expectedJson = JSON.stringify(expectedJsonObjects, null, 2);
-        assert.strictEqual(spyWriteFileSyncData, expectedJson);
+        assert.strictEqual(mockFs.lastWriteData, expectedJson);
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Combo list written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -187,7 +183,8 @@ describe('combos_list.js command tests', () => {
     it('should report error and fallback to console if file write fails', async () => {
         const outputPath = "combos_error.txt";
         const expectedFileErrorMessage = "Disk quota exceeded";
-        mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
+        // Override mockFs for this test to throw an error
+        mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); };
 
         await sandbox.global.runListCombos({ outputFile: outputPath });
 

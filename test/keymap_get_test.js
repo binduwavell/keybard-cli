@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockFS, createTestState } = require('./test-helpers');
 
 describe('keymap_get.js command tests', () => {
     let sandbox;
@@ -48,14 +48,9 @@ describe('keymap_get.js command tests', () => {
             stringify: (keycode) => `STR(${keycode})`,
         };
 
-        mockFs = {
-            writeFileSync: (filepath, data) => {
-                // In Mocha, spies are better handled with sinon in beforeEach if needed for verification
-                // For now, this mock is simple if tests primarily check console output or errors
-                mockFs.lastWritePath = filepath;
-                mockFs.lastWriteData = data;
-            }
-        };
+        mockFs = createMockFS({
+            spyWriteCalls: [] // Not used in this test but required for consistency
+        });
 
         testState = createTestState();
 
@@ -177,7 +172,8 @@ describe('keymap_get.js command tests', () => {
 
     it('should report error and fallback to console if file write fails', async () => {
         const errorMsg = "Disk full";
-        mockFs.writeFileSync = () => { throw new Error(errorMsg); }; // Override mockFs for this test
+        // Override mockFs for this test to throw an error
+        mockFs.writeFileSync = () => { throw new Error(errorMsg); };
         const testOutputFile = "keymap_error.json";
         await sandbox.global.runGetKeymap({ format: 'json', outputFile: testOutputFile });
 

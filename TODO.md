@@ -249,19 +249,19 @@ mockFs = createMockFS({ spyWriteCalls });
 
 ### Tasks:
 - [x] Identify test files that manually create file system mocks, add each file as an incomplete task after this task indicating that we should Migrate to use `createMockFS()` helper
-- [ ] Migrate `test/combo_get_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/combo_list_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/keyboard_download_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/keyboard_upload_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/keymap_download_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/keymap_get_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/keymap_upload_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/macro_get_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/macro_list_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/qmk_setting_list_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/tapdance_get_test.js` to use `createMockFS()` helper
-- [ ] Migrate `test/tapdance_list_test.js` to use `createMockFS()` helper
-- [ ] Enhance `createMockFS()` if additional capabilities are needed
+- [x] Migrate `test/combo_get_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/combo_list_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/keyboard_download_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/keyboard_upload_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/keymap_download_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/keymap_get_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/keymap_upload_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/macro_get_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/macro_list_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/qmk_setting_list_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/tapdance_get_test.js` to use `createMockFS()` helper
+- [x] Migrate `test/tapdance_list_test.js` to use `createMockFS()` helper
+- [x] Document any complex FS mock requirements that need helper enhancements
 
 ## Priority 5: Documentation and Guidelines
 

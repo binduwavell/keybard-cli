@@ -259,12 +259,14 @@ function createMockFS(options = {}) {
         lastWritePath: null,
         lastWriteData: null,
         writeFileSync: (filepath, data) => {
-            if (throwError) {
-                throw new Error(throwError);
-            }
+            // Track the attempt even if we're going to throw
             if (spyWriteCalls) spyWriteCalls.push({ filepath, data });
             mockFs.lastWritePath = filepath;
             mockFs.lastWriteData = data;
+
+            if (throwError) {
+                throw new Error(throwError);
+            }
         }
     };
 

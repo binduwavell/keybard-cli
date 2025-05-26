@@ -1,6 +1,6 @@
 // test/test_download_file.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockFS, createMockPath, createTestState } = require('./test-helpers');
 
 describe('keyboard_download.js command tests', () => {
     let sandbox;
@@ -12,7 +12,7 @@ describe('keyboard_download.js command tests', () => {
     let testState;
 
     // Spies
-    let spyFsWriteFileSync;
+    let spyWriteCalls;
     let spyKeyStringifyCalls;
 
     function setupTestEnvironment({
@@ -26,21 +26,15 @@ describe('keyboard_download.js command tests', () => {
             ...(vialConfig.usbOverrides || {})
         };
 
-        spyFsWriteFileSync = null;
-        mockFs = {
-            readFileSync: () => { throw new Error("readFileSync should not be called by keyboard_download.js"); },
-            writeFileSync: (filepath, data) => {
-                spyFsWriteFileSync = { filepath, data };
-                if (fsConfig.writeFileSyncThrows) throw new Error("Simulated fs.writeFileSync error");
-            }
-        };
+        spyWriteCalls = [];
+        mockFs = createMockFS({
+            spyWriteCalls: spyWriteCalls,
+            throwError: fsConfig.writeFileSyncThrows ? "Simulated fs.writeFileSync error" : null
+        });
+        // Add readFileSync that should not be called
+        mockFs.readFileSync = () => { throw new Error("readFileSync should not be called by keyboard_download.js"); };
 
-        mockPath = {
-            extname: (p) => {
-                const dotIndex = p.lastIndexOf('.');
-                return dotIndex < 0 ? '' : p.substring(dotIndex);
-            }
-        };
+        mockPath = createMockPath();
 
         spyKeyStringifyCalls = [];
         mockKey = {
@@ -103,9 +97,9 @@ describe('keyboard_download.js command tests', () => {
         const filepath = "output.svl";
         await sandbox.global.runDownloadFile(filepath, {});
 
-        assert.ok(spyFsWriteFileSync, "fs.writeFileSync was not called");
-        assert.strictEqual(spyFsWriteFileSync.filepath, filepath);
-        const savedData = JSON.parse(spyFsWriteFileSync.data);
+        assert.ok(mockFs.lastWritePath, "fs.writeFileSync was not called");
+        assert.strictEqual(mockFs.lastWritePath, filepath);
+        const savedData = JSON.parse(mockFs.lastWriteData);
 
         assert.deepStrictEqual(savedData.device_info, {
             layers: 2, rows: 2, cols: 2, name: "TestKbd", vid: "0x1234", pid: "0x5678"
@@ -128,8 +122,8 @@ describe('keyboard_download.js command tests', () => {
         setupTestEnvironment({ mockKbinfoData: mockData, keyConfig: { hasStringify: false } });
 
         await sandbox.global.runDownloadFile("output.svl", {});
-        assert.ok(spyFsWriteFileSync);
-        const savedData = JSON.parse(spyFsWriteFileSync.data);
+        assert.ok(mockFs.lastWritePath);
+        const savedData = JSON.parse(mockFs.lastWriteData);
         assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
         assert.deepStrictEqual(savedData.keymap[0], numericKeymap);
         assert.strictEqual(testState.mockProcessExitCode, 0);
@@ -141,8 +135,8 @@ describe('keyboard_download.js command tests', () => {
         setupTestEnvironment({ mockKbinfoData: mockData, keyConfig: { hasStringify: false } });
 
         await sandbox.global.runDownloadFile("output.svl", {});
-        assert.ok(spyFsWriteFileSync);
-        const savedData = JSON.parse(spyFsWriteFileSync.data);
+        assert.ok(mockFs.lastWritePath);
+        const savedData = JSON.parse(mockFs.lastWriteData);
         assert.isFalse(testState.consoleWarnOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
         assert.deepStrictEqual(savedData.keymap[0], stringKeymap);
         assert.strictEqual(testState.mockProcessExitCode, 0);
@@ -153,8 +147,8 @@ describe('keyboard_download.js command tests', () => {
         setupTestEnvironment({ mockKbinfoData: mockData, keyConfig: { hasStringify: true } });
         await sandbox.global.runDownloadFile("output.svl", {});
 
-        assert.ok(spyFsWriteFileSync);
-        const savedData = JSON.parse(spyFsWriteFileSync.data);
+        assert.ok(mockFs.lastWritePath);
+        const savedData = JSON.parse(mockFs.lastWriteData);
         assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Keymap data or dimensions not found")));
         assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Macros data not found")));
         assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Key_overrides data not found")));
@@ -169,8 +163,8 @@ describe('keyboard_download.js command tests', () => {
         const mockData = { layers: 2, rows: 0, cols: 0, keymap: [[], []] };
         setupTestEnvironment({ mockKbinfoData: mockData });
         await sandbox.global.runDownloadFile("output.svl", {});
-        assert.ok(spyFsWriteFileSync);
-        const savedData = JSON.parse(spyFsWriteFileSync.data);
+        assert.ok(mockFs.lastWritePath);
+        const savedData = JSON.parse(mockFs.lastWriteData);
         assert.deepStrictEqual(savedData.keymap, [[], []]);
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -193,7 +187,7 @@ describe('keyboard_download.js command tests', () => {
             fsConfig: { writeFileSyncThrows: true }
         });
         await sandbox.global.runDownloadFile("output.svl", {});
-        assert.ok(spyFsWriteFileSync); // Should still be attempted
+        assert.ok(mockFs.lastWritePath); // Should still be attempted
         assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error writing configuration to file \"output.svl\": Simulated fs.writeFileSync error")));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });

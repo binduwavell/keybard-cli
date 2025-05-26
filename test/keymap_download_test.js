@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockVial, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockVial, createMockFS, createTestState } = require('./test-helpers');
 
 describe('keymap_download.js command tests', () => {
     let sandbox;
@@ -11,8 +11,7 @@ describe('keymap_download.js command tests', () => {
     let testState;
 
     // Spy variables
-    let spyWriteFileSyncPath;
-    let spyWriteFileSyncData;
+    let spyWriteCalls;
 
     function setupTestEnvironment(mockKbinfoData = {}, vialMethodOverrides = {}) {
         mockUsb = createMockUSBSingleDevice();
@@ -52,14 +51,10 @@ describe('keymap_download.js command tests', () => {
         mockVialKb = {};
         mockKey = { /* KEY object exists */ };
 
-        spyWriteFileSyncPath = null;
-        spyWriteFileSyncData = null;
-        mockFs = {
-            writeFileSync: (filepath, data) => {
-                spyWriteFileSyncPath = filepath;
-                spyWriteFileSyncData = data;
-            }
-        };
+        spyWriteCalls = [];
+        mockFs = createMockFS({
+            spyWriteCalls: spyWriteCalls
+        });
 
         testState = createTestState();
 
@@ -82,8 +77,8 @@ describe('keymap_download.js command tests', () => {
         const outputPath = "my_keyboard_map.json";
         await sandbox.global.runDownloadKeymap(outputPath);
 
-        assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
-        assert.ok(spyWriteFileSyncData, "No data written to file.");
+        assert.strictEqual(mockFs.lastWritePath, outputPath, "Filepath mismatch.");
+        assert.ok(mockFs.lastWriteData, "No data written to file.");
 
         const expectedKeymapStructure = [
             [
@@ -93,9 +88,9 @@ describe('keymap_download.js command tests', () => {
         ];
         let parsedWrittenData;
         try {
-            parsedWrittenData = JSON.parse(spyWriteFileSyncData);
+            parsedWrittenData = JSON.parse(mockFs.lastWriteData);
         } catch (e) {
-            assert.fail(`Written data is not valid JSON. Error: ${e.message}. Data: ${spyWriteFileSyncData}`);
+            assert.fail(`Written data is not valid JSON. Error: ${e.message}. Data: ${mockFs.lastWriteData}`);
         }
 
         assert.deepStrictEqual(parsedWrittenData, expectedKeymapStructure, "Keymap JSON structure or content mismatch.");
@@ -152,9 +147,10 @@ describe('keymap_download.js command tests', () => {
     it('should report error if file write fails', async () => {
         const outputPath = "output_error.json";
         const expectedErrorMessage = "Disk is full";
+        // Override mockFs for this test to throw an error
         mockFs.writeFileSync = (filepath, data) => {
-            spyWriteFileSyncPath = filepath;
-            spyWriteFileSyncData = data;
+            mockFs.lastWritePath = filepath;
+            mockFs.lastWriteData = data;
             throw new Error(expectedErrorMessage);
         };
         await sandbox.global.runDownloadKeymap(outputPath);

@@ -18,8 +18,7 @@ describe('combo_get.js command tests', () => {
     let testState;
 
     // Spy variables
-    let spyWriteFileSyncPath;
-    let spyWriteFileSyncData;
+    let spyWriteCalls;
     let spyKeyStringifyCalls;
 
     const mockKeyDb = {
@@ -56,16 +55,10 @@ describe('combo_get.js command tests', () => {
             keyDb: mockKeyDb
         });
 
-        spyWriteFileSyncPath = null;
-        spyWriteFileSyncData = null;
+        spyWriteCalls = [];
         mockFs = createMockFS({
-            spyWriteCalls: null // We'll track manually for this test
+            spyWriteCalls: spyWriteCalls
         });
-        // Override to use our custom spy tracking
-        mockFs.writeFileSync = (filepath, data) => {
-            spyWriteFileSyncPath = filepath;
-            spyWriteFileSyncData = data;
-        };
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -106,8 +99,8 @@ describe('combo_get.js command tests', () => {
         const outputPath = "combo0.txt";
         const comboIdToGet = "0";
         await sandbox.global.runGetCombo(comboIdToGet, { format: 'text', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath);
-        assert.include(spyWriteFileSyncData, "Combo 0: KC_A + KC_B -> KC_C");
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
+        assert.include(mockFs.lastWriteData, "Combo 0: KC_A + KC_B -> KC_C");
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Combo ${comboIdToGet} data written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -123,9 +116,9 @@ describe('combo_get.js command tests', () => {
             action_key_str: "KC_E"
         };
         await sandbox.global.runGetCombo(comboIdToGet, { format: 'json', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath);
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
         const expectedJsonString = JSON.stringify(expectedComboJson, null, 2);
-        assert.strictEqual(spyWriteFileSyncData, expectedJsonString);
+        assert.strictEqual(mockFs.lastWriteData, expectedJsonString);
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Combo ${comboIdToGet} data written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });

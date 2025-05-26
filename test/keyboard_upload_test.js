@@ -1,6 +1,6 @@
 // test/test_upload_file.js
 const { assert } = require('chai');
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockFS, createMockPath, createTestState } = require('./test-helpers');
 
 describe('keyboard_upload.js command tests', () => {
     let sandbox;
@@ -12,7 +12,7 @@ describe('keyboard_upload.js command tests', () => {
     let testState;
 
     // Spies
-    let spyFsReadFileSync;
+    let spyReadCalls;
     let spyVialApplyVilData;
     let spyVialKeymapApplyVil;
     let spyVialApiUpdateKeyCalls;
@@ -53,7 +53,7 @@ describe('keyboard_upload.js command tests', () => {
         };
 
         // Reset spies
-        spyFsReadFileSync = null;
+        spyReadCalls = [];
         spyVialApplyVilData = null;
         spyVialKeymapApplyVil = null;
         spyVialApiUpdateKeyCalls = [];
@@ -70,21 +70,18 @@ describe('keyboard_upload.js command tests', () => {
         spyVialKbSave = false;
         spyKeyParseCalls = [];
 
-        mockFs = {
-            readFileSync: (filepath, encoding) => {
-                spyFsReadFileSync = { filepath, encoding };
-                if (fileConfig.readError) throw fileConfig.readError;
-                if (filepath === fileConfig.path) return fileConfig.content;
-                throw new Error(`Unexpected file path: ${filepath}`);
-            }
+        // Create basic mockFs and add custom readFileSync
+        mockFs = createMockFS({
+            spyWriteCalls: [] // Not used in this test but required for consistency
+        });
+        mockFs.readFileSync = (filepath, encoding) => {
+            spyReadCalls.push({ filepath, encoding });
+            if (fileConfig.readError) throw fileConfig.readError;
+            if (filepath === fileConfig.path) return fileConfig.content;
+            throw new Error(`Unexpected file path: ${filepath}`);
         };
 
-        mockPath = {
-            extname: (p) => {
-                const dotIndex = p.lastIndexOf('.');
-                return dotIndex === -1 ? '' : p.substring(dotIndex);
-            }
-        };
+        mockPath = createMockPath();
 
         mockKey = { parse: mockKeyParseImplementation };
 

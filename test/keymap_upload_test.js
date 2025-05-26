@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockFS, createTestState } = require('./test-helpers');
 
 describe('keymap_upload.js command tests', () => {
     let sandbox;
@@ -14,7 +14,7 @@ describe('keymap_upload.js command tests', () => {
     let spyKeyParseCallCount;
     let spyKeyParseLastArg;
     let spyUpdateKeyCalls;
-    let spyFsReadFileSyncPath;
+    let spyReadCalls;
 
     function setupTestEnvironment(
         mockKbinfoOverrides = {},
@@ -59,16 +59,18 @@ describe('keymap_upload.js command tests', () => {
             })
         };
 
-        spyFsReadFileSyncPath = null;
-        mockFs = {
-            readFileSync: (filepath, encoding) => {
-                spyFsReadFileSyncPath = filepath;
-                // This function will be overridden by tests that need specific file content
-                if (filepath.endsWith('upload_keymap.js')) { // Allow reading the lib itself
-                    return fs.readFileSync(path.resolve(__dirname, '..', 'lib/keymap_upload.js'), 'utf8');
-                }
-                throw new Error(`mockFs.readFileSync: Path not mocked by specific test: ${filepath}`);
+        spyReadCalls = [];
+        // Create basic mockFs and add custom readFileSync
+        mockFs = createMockFS({
+            spyWriteCalls: [] // Not used in this test but required for consistency
+        });
+        mockFs.readFileSync = (filepath, encoding) => {
+            spyReadCalls.push({ filepath, encoding });
+            // This function will be overridden by tests that need specific file content
+            if (filepath.endsWith('upload_keymap.js')) { // Allow reading the lib itself
+                return fs.readFileSync(path.resolve(__dirname, '..', 'lib/keymap_upload.js'), 'utf8');
             }
+            throw new Error(`mockFs.readFileSync: Path not mocked by specific test: ${filepath}`);
         };
 
         testState = createTestState();
@@ -93,7 +95,7 @@ describe('keymap_upload.js command tests', () => {
 
         // Override fs.readFileSync for this specific test
         sandbox.fs.readFileSync = (filepath, encoding) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             if (filepath === "valid_keymap.json") {
                 return JSON.stringify([ [ ["KC_A", "KC_B"] ] ]);
             }
@@ -103,7 +105,7 @@ describe('keymap_upload.js command tests', () => {
 
         await sandbox.global.runUploadKeymap("valid_keymap.json");
 
-        assert.strictEqual(spyFsReadFileSyncPath, "valid_keymap.json", "spyFsReadFileSyncPath incorrect");
+        assert.strictEqual(spyReadCalls[spyReadCalls.length - 1].filepath, "valid_keymap.json", "spyReadCalls filepath incorrect");
         assert.strictEqual(spyKeyParseCallCount, 2, "spyKeyParseCallCount incorrect");
 
         // Check that updateKey was called for each key
@@ -118,7 +120,7 @@ describe('keymap_upload.js command tests', () => {
 
     it('should error if file not found', async () => {
         sandbox.fs.readFileSync = (filepath, encoding) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             if (filepath === "nonexistent.json") throw new Error("File actually not found");
             throw new Error(`testFileNotFound: Unhandled path: ${filepath}`);
         };
@@ -130,7 +132,7 @@ describe('keymap_upload.js command tests', () => {
 
     it('should error for invalid JSON format', async () => {
         sandbox.fs.readFileSync = (filepath, encoding) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             if (filepath === "invalid.json") return "{not_json_at_all";
             throw new Error(`testInvalidJsonFormat: Unhandled path: ${filepath}`);
         };
@@ -142,7 +144,7 @@ describe('keymap_upload.js command tests', () => {
     it('should error if no compatible device is found', async () => {
         mockUsb.list = () => []; // Override for this test
         sandbox.fs.readFileSync = (filepath, encoding) => { // Still need to mock readFileSync
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             if (filepath === "any_file.json") return JSON.stringify([ [ ["KC_A", "KC_B"] ] ]);
             throw new Error(`testNoDevice: Unhandled readFileSync path: ${filepath}`);
         };
@@ -154,7 +156,7 @@ describe('keymap_upload.js command tests', () => {
     it('should error if getKeyboardInfo fails', async () => {
         setupTestEnvironment({}, {}, { load: async () => {} }); // Override Vial method to not populate kbinfo
         sandbox.fs.readFileSync = (filepath, encoding) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             if (filepath === "any_file.json") return JSON.stringify([ [ ["KC_A", "KC_B"] ] ]);
             throw new Error(`testGetKeyboardInfoFails: Unhandled readFileSync path: ${filepath}`);
         };
@@ -166,7 +168,7 @@ describe('keymap_upload.js command tests', () => {
     it('should error if layer count in file mismatches keyboard', async () => {
         setupTestEnvironment({ layers: 1 }); // Keyboard expects 1 layer
         sandbox.fs.readFileSync = (filepath, encoding) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             // File has 2 layers
             if (filepath === "wrong_layers.json") return JSON.stringify([ [["KC_A","KC_B"]], [["KC_C","KC_D"]] ]);
             throw new Error(`testLayerCountMismatch: Unhandled path: ${filepath}`);
@@ -179,7 +181,7 @@ describe('keymap_upload.js command tests', () => {
     it('should error if row count in file mismatches keyboard', async () => {
         setupTestEnvironment({ rows: 1, layers: 1, cols: 2 }); // Keyboard expects 1 row
         sandbox.fs.readFileSync = (filepath, encoding) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             // File has 1 layer, 2 rows
             if (filepath === "wrong_rows.json") return JSON.stringify([ [ [["KC_A", "KC_B"]], [["KC_C", "KC_D"]] ] ]);
             throw new Error(`testRowCountMismatch: Unhandled path: ${filepath}`);
@@ -192,7 +194,7 @@ describe('keymap_upload.js command tests', () => {
     it('should error if column count in file mismatches keyboard', async () => {
         setupTestEnvironment({ cols: 2, layers: 1, rows: 1 }); // Keyboard expects 2 columns
         sandbox.fs.readFileSync = (filepath, encoding) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             // File has 1 layer, 1 row, 3 columns
             if (filepath === "wrong_cols.json") return JSON.stringify([ [ ["KC_A", "KC_B", "KC_C"] ] ]);
             throw new Error(`testColCountMismatch: Unhandled path: ${filepath}`);
@@ -206,7 +208,7 @@ describe('keymap_upload.js command tests', () => {
     it('should error for invalid keycode string in JSON file', async () => {
         setupTestEnvironment();
         sandbox.fs.readFileSync = (filepath, encoding) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             if (filepath === "invalid_kc_in_file.json") return JSON.stringify([ [ [ "KC_A", "KC_INVALID" ] ] ]);
             throw new Error(`testInvalidKeycodeInJson: Unhandled path: ${filepath}`);
         };
@@ -219,7 +221,7 @@ describe('keymap_upload.js command tests', () => {
     it('should error if KEY.parse throws an error', async () => {
         // setupTestEnvironment will use the default KEY.parse mock which throws for "KC_ERROR_PARSE"
         sandbox.fs.readFileSync = (filepath, encoding) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath, encoding });
             if (filepath === "key_parse_error.json") return JSON.stringify([[["KC_A", "KC_ERROR_PARSE"]]]);
             throw new Error(`testKeyParseThrowsError: Unhandled path: ${filepath}`);
         };
@@ -232,7 +234,7 @@ describe('keymap_upload.js command tests', () => {
     it('should error if Vial.api.updateKey is missing', async () => {
         setupTestEnvironment({}, { updateKey: undefined }); // Vial.api.updateKey is undefined
         sandbox.fs.readFileSync = (filepath) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath });
             return JSON.stringify([[["KC_A", "KC_B"]]]);
         };
         await sandbox.global.runUploadKeymap("valid_for_missing_updatekey.json");
@@ -243,7 +245,7 @@ describe('keymap_upload.js command tests', () => {
     it('should handle error during Vial.api.updateKey', async () => {
         setupTestEnvironment({}, { updateKey: async () => { throw new Error("UpdateKey hardware failure"); } });
         sandbox.fs.readFileSync = (filepath) => {
-            spyFsReadFileSyncPath = filepath;
+            spyReadCalls.push({ filepath });
             return JSON.stringify([[["KC_A", "KC_B"]]]);
         };
         await sandbox.global.runUploadKeymap("valid_for_updatekey_error.json");

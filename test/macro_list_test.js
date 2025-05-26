@@ -4,6 +4,7 @@ const {
     createMockUSBSingleDevice,
     createMockKEY,
     createMockVial,
+    createMockFS,
     createTestState
 } = require('./test-helpers');
 
@@ -17,8 +18,7 @@ describe('macro_list.js command tests', () => {
     let testState;
 
     // Spy variables
-    let spyWriteFileSyncPath;
-    let spyWriteFileSyncData;
+    let spyWriteCalls;
 
     // Sample Macro Data
     const sampleMacros = [
@@ -42,14 +42,10 @@ describe('macro_list.js command tests', () => {
         mockVialKb = {};
         mockKey = createMockKEY();
 
-        spyWriteFileSyncPath = null;
-        spyWriteFileSyncData = null;
-        mockFs = {
-            writeFileSync: (filepath, data) => {
-                spyWriteFileSyncPath = filepath;
-                spyWriteFileSyncData = data;
-            }
-        };
+        spyWriteCalls = [];
+        mockFs = createMockFS({
+            spyWriteCalls: spyWriteCalls
+        });
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -85,9 +81,9 @@ describe('macro_list.js command tests', () => {
     it('should list macros in text format to file', async () => {
         const outputPath = "macros.txt";
         await sandbox.global.runListMacros({ format: 'text', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
-        assert.include(spyWriteFileSyncData, `Found ${sampleMacroCount} active macro(s) (total slots:`, "File data header missing.");
-        assert.include(spyWriteFileSyncData, "Macro 0: Tap(KC_A) Text(\"Hello\")", "File data Macro 0 incorrect.");
+        assert.strictEqual(mockFs.lastWritePath, outputPath, "Filepath mismatch.");
+        assert.include(mockFs.lastWriteData, `Found ${sampleMacroCount} active macro(s) (total slots:`, "File data header missing.");
+        assert.include(mockFs.lastWriteData, "Macro 0: Tap(KC_A) Text(\"Hello\")", "File data Macro 0 incorrect.");
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Macro list written to ${outputPath}`)), "Success message not logged.");
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -95,9 +91,9 @@ describe('macro_list.js command tests', () => {
     it('should list macros in JSON format to file', async () => {
         const outputPath = "macros.json";
         await sandbox.global.runListMacros({ format: 'json', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
+        assert.strictEqual(mockFs.lastWritePath, outputPath, "Filepath mismatch.");
         const expectedJson = JSON.stringify(sampleMacros, null, 2);
-        assert.strictEqual(spyWriteFileSyncData, expectedJson, "File JSON data mismatch.");
+        assert.strictEqual(mockFs.lastWriteData, expectedJson, "File JSON data mismatch.");
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Macro list written to ${outputPath}`)), "Success message not logged.");
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -167,7 +163,8 @@ describe('macro_list.js command tests', () => {
     it('should report error and fallback to console if file write fails', async () => {
         const outputPath = "macros_error.txt";
         const expectedFileErrorMessage = "Cannot write to disk";
-        mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
+        // Override mockFs for this test to throw an error
+        mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); };
 
         await sandbox.global.runListMacros({ outputFile: outputPath });
 

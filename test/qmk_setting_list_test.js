@@ -1,6 +1,6 @@
 // test/test_list_qmk_settings.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState, createMockVial } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockFS, createTestState, createMockVial } = require('./test-helpers');
 
 describe('qmk_settings_list.js command tests', () => {
     let sandbox;
@@ -11,7 +11,7 @@ describe('qmk_settings_list.js command tests', () => {
     let testState;
 
     // Spies
-    let spyFsWriteFileSync;
+    let spyWriteCalls;
 
     function setupTestEnvironment(
         mockKbinfoInitial = {},
@@ -41,13 +41,12 @@ describe('qmk_settings_list.js command tests', () => {
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides, kb: {} };
 
-        spyFsWriteFileSync = null;
-        mockFs = {
-            writeFileSync: (filepath, data) => {
-                spyFsWriteFileSync = { filepath, data };
-            },
-            ...fsMethodOverrides
-        };
+        spyWriteCalls = [];
+        mockFs = createMockFS({
+            spyWriteCalls: spyWriteCalls
+        });
+        // Apply any method overrides
+        Object.assign(mockFs, fsMethodOverrides);
 
         mockKey = { parse: () => 0 }; // Minimal KEY mock
 
@@ -101,9 +100,9 @@ describe('qmk_settings_list.js command tests', () => {
         const outputPath = "test_qmk_settings.json";
         await sandbox.global.runListQmkSettings({ outputFile: outputPath });
 
-        assert.ok(spyFsWriteFileSync, "fs.writeFileSync was not called");
-        assert.strictEqual(spyFsWriteFileSync.filepath, outputPath);
-        assert.deepStrictEqual(JSON.parse(spyFsWriteFileSync.data), settingsData);
+        assert.ok(mockFs.lastWritePath, "fs.writeFileSync was not called");
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
+        assert.deepStrictEqual(JSON.parse(mockFs.lastWriteData), settingsData);
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`QMK settings successfully written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -114,9 +113,9 @@ describe('qmk_settings_list.js command tests', () => {
         const outputPath = "legacy_settings.json";
         await sandbox.global.runListQmkSettings({ outputFile: outputPath });
 
-        assert.ok(spyFsWriteFileSync, "fs.writeFileSync was not called");
-        assert.strictEqual(spyFsWriteFileSync.filepath, outputPath);
-        assert.deepStrictEqual(JSON.parse(spyFsWriteFileSync.data), settingsData);
+        assert.ok(mockFs.lastWritePath, "fs.writeFileSync was not called");
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
+        assert.deepStrictEqual(JSON.parse(mockFs.lastWriteData), settingsData);
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`QMK settings successfully written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -135,15 +134,17 @@ describe('qmk_settings_list.js command tests', () => {
             { qmk_settings: settingsData },
             {},
             { writeFileSync: (filepath, data) => {
-                spyFsWriteFileSync = { filepath, data };
+                spyWriteCalls.push({ filepath, data });
+                mockFs.lastWritePath = filepath;
+                mockFs.lastWriteData = data;
                 throw new Error("Simulated file write error");
               }
             }
         );
         await sandbox.global.runListQmkSettings({ outputFile: outputPath });
 
-        assert.ok(spyFsWriteFileSync, "fs.writeFileSync was not attempted or spy not set before throw");
-        assert.strictEqual(spyFsWriteFileSync.filepath, outputPath);
+        assert.ok(mockFs.lastWritePath, "fs.writeFileSync was not attempted or spy not set before throw");
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
         assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error writing QMK settings to file ${outputPath}: Simulated file write error`)));
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("QMK Settings (fallback to console, text format):")));
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("brightness: 50")));

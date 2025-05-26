@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState, createMockVial } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createMockFS, createTestState, createMockVial } = require('./test-helpers');
 
 describe('macro_get.js command tests', () => {
     let sandbox;
@@ -11,8 +11,7 @@ describe('macro_get.js command tests', () => {
     let testState;
 
     // Spy variables
-    let spyWriteFileSyncPath;
-    let spyWriteFileSyncData;
+    let spyWriteCalls;
 
     const sampleMacros = [
         { mid: 0, actions: [ ['tap', 'KC_A'], ['text', 'Hello'] ] },
@@ -46,7 +45,7 @@ describe('macro_get.js command tests', () => {
         };
 
 
-        
+
 
 
         mockVial = createMockVial(defaultKbinfo, customVialMethods);
@@ -54,14 +53,10 @@ describe('macro_get.js command tests', () => {
         mockVialKb = {};
         mockKey = { /* KEY object exists, stringify/parse not directly used by get_macro.js logic */ };
 
-        spyWriteFileSyncPath = null;
-        spyWriteFileSyncData = null;
-        mockFs = {
-            writeFileSync: (filepath, data) => {
-                spyWriteFileSyncPath = filepath;
-                spyWriteFileSyncData = data;
-            }
-        };
+        spyWriteCalls = [];
+        mockFs = createMockFS({
+            spyWriteCalls: spyWriteCalls
+        });
 
         testState = createTestState();
 
@@ -96,8 +91,8 @@ describe('macro_get.js command tests', () => {
     it('should get macro in text format to file when it exists', async () => {
         const outputPath = "macro0.txt";
         await sandbox.global.runGetMacro("0", { format: 'text', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath);
-        assert.include(spyWriteFileSyncData, "Macro 0: Tap(KC_A) Text(\"Hello\")");
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
+        assert.include(mockFs.lastWriteData, "Macro 0: Tap(KC_A) Text(\"Hello\")");
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Macro 0 data written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -105,9 +100,9 @@ describe('macro_get.js command tests', () => {
     it('should get macro in JSON format to file when it exists', async () => {
         const outputPath = "macro1.json";
         await sandbox.global.runGetMacro("1", { format: 'json', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath);
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
         const expectedJson = JSON.stringify(sampleMacros[1], null, 2);
-        assert.strictEqual(spyWriteFileSyncData, expectedJson);
+        assert.strictEqual(mockFs.lastWriteData, expectedJson);
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Macro 1 data written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -154,7 +149,8 @@ describe('macro_get.js command tests', () => {
     it('should report error and fallback to console if file write fails', async () => {
         const outputPath = "macro_error.txt";
         const expectedFileErrorMessage = "Disk full";
-        mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
+        // Override mockFs for this test to throw an error
+        mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); };
 
         await sandbox.global.runGetMacro("0", { outputFile: outputPath });
 

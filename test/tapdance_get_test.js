@@ -4,6 +4,7 @@ const {
     createMockUSBSingleDevice,
     createMockKEY,
     createMockVial,
+    createMockFS,
     createTestState
 } = require('./test-helpers');
 
@@ -17,8 +18,7 @@ describe('tapdance_get.js command tests', () => {
     let testState;
 
     // Spy variables
-    let spyWriteFileSyncPath;
-    let spyWriteFileSyncData;
+    let spyWriteCalls;
 
     const sampleTapdancesData = [
         { tdid: 0, tap: "KC_A", hold: "KC_NO", doubletap: "KC_B", taphold: "KC_NONE", tapms: 200 },
@@ -42,14 +42,10 @@ describe('tapdance_get.js command tests', () => {
         mockVialKb = {};
         mockKey = createMockKEY();
 
-        spyWriteFileSyncPath = null;
-        spyWriteFileSyncData = null;
-        mockFs = {
-            writeFileSync: (filepath, data) => {
-                spyWriteFileSyncPath = filepath;
-                spyWriteFileSyncData = data;
-            }
-        };
+        spyWriteCalls = [];
+        mockFs = createMockFS({
+            spyWriteCalls: spyWriteCalls
+        });
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -82,8 +78,8 @@ describe('tapdance_get.js command tests', () => {
     it('should get tapdance in text format to file when it exists', async () => {
         const outputPath = "tapdance0.txt";
         await sandbox.global.runGetTapdance("0", { format: 'text', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath);
-        assert.include(spyWriteFileSyncData, "Tapdance 0: Tap(KC_A) DoubleTap(KC_B) Term(200ms)");
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
+        assert.include(mockFs.lastWriteData, "Tapdance 0: Tap(KC_A) DoubleTap(KC_B) Term(200ms)");
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Tapdance 0 data written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -91,9 +87,9 @@ describe('tapdance_get.js command tests', () => {
     it('should get tapdance in JSON format to file when it exists', async () => {
         const outputPath = "tapdance1.json";
         await sandbox.global.runGetTapdance("1", { format: 'json', outputFile: outputPath });
-        assert.strictEqual(spyWriteFileSyncPath, outputPath);
+        assert.strictEqual(mockFs.lastWritePath, outputPath);
         const expectedJson = JSON.stringify(sampleTapdancesData[1], null, 2);
-        assert.strictEqual(spyWriteFileSyncData, expectedJson);
+        assert.strictEqual(mockFs.lastWriteData, expectedJson);
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Tapdance 1 data written to ${outputPath}`)));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
@@ -143,7 +139,8 @@ describe('tapdance_get.js command tests', () => {
     it('should report error and fallback to console if file write fails', async () => {
         const outputPath = "tapdance_error.txt";
         const expectedFileErrorMessage = "Disk full";
-        mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
+        // Override mockFs for this test to throw an error
+        mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); };
 
         await sandbox.global.runGetTapdance("0", { outputFile: outputPath });
 
