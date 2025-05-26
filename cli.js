@@ -81,6 +81,17 @@ vm.runInContext(deviceSelectionScript, sandbox);
 const commandUtilsScript = fs.readFileSync(path.resolve(__dirname, 'lib/common/command-utils.js'), 'utf8');
 vm.runInContext(commandUtilsScript, sandbox);
 
+// Add global device selection option
+program.option('-d, --device <selector>', 'Select device by index, path, or name (e.g., --device 0, --device /dev/hidraw6, --device "Manufacturer Product")');
+
+// Function to get device selector from global options
+function getDeviceSelector() {
+  return program.opts().device;
+}
+
+// Add device selector to sandbox for use in commands
+sandbox.getDeviceSelector = getDeviceSelector;
+
 // Keyboard command group
 const keyboardCmd = program.command('keyboard');
 keyboardCmd.description('Keyboard information and keymap operations');

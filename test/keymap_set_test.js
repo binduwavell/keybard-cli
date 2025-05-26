@@ -1,19 +1,11 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path');
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 describe('keymap_set.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockVialKb; 
+    let mockVialKb;
     let mockKey;
     let consoleLogOutput;
     let consoleErrorOutput;
@@ -25,12 +17,7 @@ describe('keymap_set.js command tests', () => {
     let spySaveKeymapCalled;
 
     function setupTestEnvironment(mockKbinfoOverrides = {}, vialKbOverrides = {}, vialMethodOverrides = {}) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        mockUsb = createMockUSBSingleDevice();
 
         const defaultMockKbinfo = {
             rows: 2,
@@ -41,7 +28,7 @@ describe('keymap_set.js command tests', () => {
 
         const defaultMockVialMethods = {
             init: async (kbinfoRef) => { /* Does basic setup */ },
-            getKeyboardInfo: async (kbinfoRef) => { 
+            getKeyboardInfo: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     rows: effectiveMockKbinfo.rows,
                     cols: effectiveMockKbinfo.cols,
@@ -60,16 +47,16 @@ describe('keymap_set.js command tests', () => {
             saveKeymap: async () => {
                 spySaveKeymapCalled = true;
             },
-            ...vialKbOverrides 
+            ...vialKbOverrides
         };
 
         spyKeyParseArgs = null;
         mockKey = {
             parse: (keyDefStr) => {
                 spyKeyParseArgs = keyDefStr;
-                if (keyDefStr === "KC_INVALID") return undefined; 
+                if (keyDefStr === "KC_INVALID") return undefined;
                 if (keyDefStr === "KC_ERROR") throw new Error("Simulated KEY.parse error");
-                return 0x0001 + keyDefStr.length; 
+                return 0x0001 + keyDefStr.length;
             }
         };
 
@@ -77,23 +64,17 @@ describe('keymap_set.js command tests', () => {
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
-            Vial: { ...mockVial, kb: mockVialKb }, 
+            Vial: { ...mockVial, kb: mockVialKb },
             KEY: mockKey,
-            fs: {}, 
+            fs: {},
             runInitializers: () => {},
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/keymap_set.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/keymap_set.js']);
     }
 
     beforeEach(() => {
@@ -102,10 +83,10 @@ describe('keymap_set.js command tests', () => {
 
     it('should set key on default layer successfully', async () => {
         const keyDef = "KC_A";
-        const position = "1"; 
+        const position = "1";
         const expectedKeycode = 0x0001 + keyDef.length;
 
-        await sandbox.global.runSetKeymapEntry(keyDef, position, {}); 
+        await sandbox.global.runSetKeymapEntry(keyDef, position, {});
 
         assert.strictEqual(spyKeyParseArgs, keyDef, "KEY.parse not called with correct key_definition");
         assert.deepStrictEqual(spySetKeyDefArgs, { layer: 0, kid: 1, keyDef: expectedKeycode }, "Vial.kb.setKeyDef not called correctly");
@@ -137,7 +118,8 @@ describe('keymap_set.js command tests', () => {
     });
 
     it('should error if USB open fails', async () => {
-        mockUsb.open = async () => false; // Override for this test
+        // Mock the openDeviceConnection to fail
+        sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runSetKeymapEntry("KC_A", "0", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
         assert.strictEqual(mockProcessExitCode, 1);

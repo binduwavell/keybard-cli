@@ -1,51 +1,38 @@
 // test/test_list_qmk_settings.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 describe('qmk_settings_list.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockFs; 
-    let mockKey; 
+    let mockFs;
+    let mockKey;
 
     let consoleLogOutput;
     let consoleErrorOutput;
-    let consoleInfoOutput; 
+    let consoleInfoOutput;
     let mockProcessExitCode;
 
     // Spies
     let spyFsWriteFileSync;
 
     function setupTestEnvironment(
-        mockKbinfoInitial = {}, 
+        mockKbinfoInitial = {},
         vialMethodOverrides = {},
         fsMethodOverrides = {}
     ) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        mockUsb = createMockUSBSingleDevice();
 
-        const defaultKbinfoSetup = { 
-            qmk_settings: mockKbinfoInitial.qmk_settings, 
+        const defaultKbinfoSetup = {
+            qmk_settings: mockKbinfoInitial.qmk_settings,
             settings: mockKbinfoInitial.settings,
             keymap_size: 0, layers: 0, macros: [], macro_count: 0, key_overrides: [], key_override_count: 0,
         };
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => { /* Minimal mock */ },
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 if (defaultKbinfoSetup.qmk_settings !== undefined) {
                     kbinfoRef.qmk_settings = JSON.parse(JSON.stringify(defaultKbinfoSetup.qmk_settings));
                 }
@@ -56,16 +43,16 @@ describe('qmk_settings_list.js command tests', () => {
                 kbinfoRef.layers = defaultKbinfoSetup.layers;
             }
         };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides, kb: {} }; 
+        mockVial = { ...defaultVialMethods, ...vialMethodOverrides, kb: {} };
 
-        spyFsWriteFileSync = null; 
+        spyFsWriteFileSync = null;
         mockFs = {
             writeFileSync: (filepath, data) => {
                 spyFsWriteFileSync = { filepath, data };
             },
             ...fsMethodOverrides
         };
-        
+
         mockKey = { parse: () => 0 }; // Minimal KEY mock
 
         consoleLogOutput = [];
@@ -73,26 +60,23 @@ describe('qmk_settings_list.js command tests', () => {
         consoleInfoOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: mockVial,
-            KEY: mockKey, 
-            fs: mockFs, 
+            KEY: mockKey,
+            fs: mockFs,
             runInitializers: () => {},
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')), 
-                info: (...args) => consoleInfoOutput.push(args.join(' ')), 
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
+                info: (...args) => consoleInfoOutput.push(args.join(' ')),
             },
-            global: {},
-            require: require, 
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/qmk_setting_list.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/qmk_setting_list.js']);
     }
 
     beforeEach(() => {
@@ -115,7 +99,7 @@ describe('qmk_settings_list.js command tests', () => {
 
     it('should list QMK settings to console from kbinfo.settings as fallback', async () => {
         const settingsData = { "legacy_setting": "on", "timeout": 30 };
-        setupTestEnvironment({ settings: settingsData, qmk_settings: undefined }); 
+        setupTestEnvironment({ settings: settingsData, qmk_settings: undefined });
         await sandbox.global.runListQmkSettings({});
 
         assert.deepStrictEqual(consoleLogOutput, [
@@ -154,7 +138,7 @@ describe('qmk_settings_list.js command tests', () => {
     });
 
     it('should inform if QMK settings object is empty', async () => {
-        setupTestEnvironment({ qmk_settings: {} }); 
+        setupTestEnvironment({ qmk_settings: {} });
         await sandbox.global.runListQmkSettings({});
         assert.isTrue(consoleLogOutput.some(line => line.includes("QMK settings object found, but it is empty.")));
         assert.strictEqual(mockProcessExitCode, 0);
@@ -165,9 +149,9 @@ describe('qmk_settings_list.js command tests', () => {
         const outputPath = "fail_settings.json";
         setupTestEnvironment(
             { qmk_settings: settingsData },
-            {}, 
-            { writeFileSync: (filepath, data) => { 
-                spyFsWriteFileSync = { filepath, data }; 
+            {},
+            { writeFileSync: (filepath, data) => {
+                spyFsWriteFileSync = { filepath, data };
                 throw new Error("Simulated file write error");
               }
             }
@@ -183,14 +167,14 @@ describe('qmk_settings_list.js command tests', () => {
     });
 
     it('should inform if no QMK settings are found (both qmk_settings and settings undefined)', async () => {
-        setupTestEnvironment({ qmk_settings: undefined, settings: undefined }); 
+        setupTestEnvironment({ qmk_settings: undefined, settings: undefined });
         await sandbox.global.runListQmkSettings({});
         assert.isTrue(consoleInfoOutput.some(line => line.includes("QMK settings not available or not found on this device.")));
-        assert.strictEqual(mockProcessExitCode, 0); 
+        assert.strictEqual(mockProcessExitCode, 0);
     });
 
     it('should inform if QMK settings data is not an object', async () => {
-        setupTestEnvironment({ qmk_settings: "this is a string" }); 
+        setupTestEnvironment({ qmk_settings: "this is a string" });
         await sandbox.global.runListQmkSettings({});
         assert.isTrue(consoleInfoOutput.some(line => line.includes("QMK settings found but in an unexpected format (Type: string). Expected an object.")));
         assert.strictEqual(mockProcessExitCode, 0);
@@ -204,7 +188,8 @@ describe('qmk_settings_list.js command tests', () => {
     });
 
     it('should error if USB open fails', async () => {
-        mockUsb.open = async () => false; // Override for this test
+        // Mock the openDeviceConnection to fail
+        sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runListQmkSettings({});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
         assert.strictEqual(mockProcessExitCode, 1);

@@ -1,15 +1,7 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 const MAX_MACRO_SLOTS_IN_TEST = 16;
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
 
 describe('macro_edit.js command tests', () => {
     let sandbox;
@@ -51,12 +43,7 @@ describe('macro_edit.js command tests', () => {
         vialMacroOverrides = {},
         vialKbMethodOverrides = {}
     ) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        mockUsb = createMockUSBSingleDevice();
 
         keyParseResults = {};
         spyKeyParseCalls = [];
@@ -117,7 +104,7 @@ describe('macro_edit.js command tests', () => {
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb, Vial: { ...mockVial, macro: mockVialMacro, kb: mockVialKb },
             KEY: mockKey, fs: {}, runInitializers: () => {},
             MAX_MACRO_SLOTS: MAX_MACRO_SLOTS_IN_TEST,
@@ -126,13 +113,11 @@ describe('macro_edit.js command tests', () => {
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
                 warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
-            global: {},
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/macro_edit.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/macro_edit.js']);
     }
 
     beforeEach(() => {
@@ -223,7 +208,8 @@ describe('macro_edit.js command tests', () => {
     });
 
     it('should error if USB open fails', async () => {
-        mockUsb.open = async () => false;
+        // Mock the openDeviceConnection to fail
+        sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runEditMacro("0", "KC_A", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
         assert.strictEqual(mockProcessExitCode, 1);

@@ -1,14 +1,6 @@
 // test/test_set_qmk_setting.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path');
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 describe('qmk_setting_set.js command tests', () => {
     let sandbox;
@@ -31,20 +23,15 @@ describe('qmk_setting_set.js command tests', () => {
     let spyVialKbSave;
 
     function setupTestEnvironment(
-        mockKbinfoInitial = {}, 
-        vialConfig = {} 
+        mockKbinfoInitial = {},
+        vialConfig = {}
     ) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        mockUsb = createMockUSBSingleDevice();
 
-        const defaultKbinfoSetup = { 
-            qmk_settings: mockKbinfoInitial.qmk_settings, 
+        const defaultKbinfoSetup = {
+            qmk_settings: mockKbinfoInitial.qmk_settings,
             settings: mockKbinfoInitial.settings,
-            keymap_size: 0, layers: 0, 
+            keymap_size: 0, layers: 0,
         };
 
         spyVialSetQmkSetting = null;
@@ -57,7 +44,7 @@ describe('qmk_setting_set.js command tests', () => {
 
         mockVial = {
             init: async (kbinfoRef) => { /* Minimal mock */ },
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 if (defaultKbinfoSetup.qmk_settings !== undefined) {
                     kbinfoRef.qmk_settings = JSON.parse(JSON.stringify(defaultKbinfoSetup.qmk_settings));
                 }
@@ -67,9 +54,9 @@ describe('qmk_setting_set.js command tests', () => {
                 kbinfoRef.keymap_size = defaultKbinfoSetup.keymap_size;
                 kbinfoRef.layers = defaultKbinfoSetup.layers;
             },
-            kb: {}, 
-            qmkSettings: {}, 
-            settings: {} 
+            kb: {},
+            qmkSettings: {},
+            settings: {}
         };
 
         if (vialConfig.hasVialSetQmkSetting) {
@@ -95,27 +82,25 @@ describe('qmk_setting_set.js command tests', () => {
         }
 
         mockFs = { /* No direct fs ops here */ };
-        mockKey = { parse: () => 0 }; 
+        mockKey = { parse: () => 0 };
 
         consoleLogOutput = [];
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
-            USB: mockUsb, Vial: mockVial, KEY: mockKey, fs: mockFs, 
+        sandbox = createSandboxWithDeviceSelection({
+            USB: mockUsb, Vial: mockVial, KEY: mockKey, fs: mockFs,
             runInitializers: () => {},
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')), 
+                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
             },
-            global: {}, require: require, 
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/qmk_setting_set.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/qmk_setting_set.js']);
     }
 
     beforeEach(() => {
@@ -202,8 +187,8 @@ describe('qmk_setting_set.js command tests', () => {
         it('should use Vial.qmkSettings.push and Vial.kb.save if direct set is unavailable', async () => {
             const initialSettings = { "existingSetting": "oldValue", "another": 10 };
             setupTestEnvironment(
-                { qmk_settings: initialSettings }, 
-                { hasVialQmkSettingsPush: true, hasVialKbSave: true } 
+                { qmk_settings: initialSettings },
+                { hasVialQmkSettingsPush: true, hasVialKbSave: true }
             );
             await sandbox.global.runSetQmkSetting("existingSetting", "newValue", {});
             assert.ok(spyVialQmkSettingsPush);
@@ -215,8 +200,8 @@ describe('qmk_setting_set.js command tests', () => {
         it('should use Vial.settings.push and Vial.kb.save if direct set and qmkSettings.push are unavailable', async () => {
             const initialSettings = { "settingA": false };
              setupTestEnvironment(
-                { settings: initialSettings }, 
-                { hasVialSettingsPush: true, hasVialKbSave: true } 
+                { settings: initialSettings },
+                { hasVialSettingsPush: true, hasVialKbSave: true }
             );
             await sandbox.global.runSetQmkSetting("settingA", "true", {});
             assert.ok(spyVialSettingsPush);
@@ -226,7 +211,7 @@ describe('qmk_setting_set.js command tests', () => {
         });
         it('should error if setting does not exist for load-modify-push', async () => {
             setupTestEnvironment(
-                { qmk_settings: { "known": "value" } }, 
+                { qmk_settings: { "known": "value" } },
                 { hasVialQmkSettingsPush: true, hasVialKbSave: true }
             );
             await sandbox.global.runSetQmkSetting("unknownSetting", "value", {});
@@ -242,10 +227,10 @@ describe('qmk_setting_set.js command tests', () => {
             assert.strictEqual(mockProcessExitCode, 1);
         });
     });
-    
+
     it('should prefer direct set over fallback load-modify-push', async () => {
         setupTestEnvironment(
-            { qmk_settings: { "mySetting": "initial" } }, 
+            { qmk_settings: { "mySetting": "initial" } },
             { hasVialSetQmkSetting: true, hasVialQmkSettingsPush: true, hasVialKbSave: true }
         );
         await sandbox.global.runSetQmkSetting("mySetting", "directValue", {});
@@ -292,7 +277,7 @@ describe('qmk_setting_set.js command tests', () => {
         });
         it('should handle error if fallback push method throws', async () => {
             setupTestEnvironment(
-                { qmk_settings: { "aSetting": "old" } }, 
+                { qmk_settings: { "aSetting": "old" } },
                 { hasVialQmkSettingsPush: true, qmkSettingsPushThrows: true }
             );
             await sandbox.global.runSetQmkSetting("aSetting", "new", {});
@@ -301,7 +286,7 @@ describe('qmk_setting_set.js command tests', () => {
         });
         it('should handle error if save method throws', async () => {
             setupTestEnvironment(
-                {}, 
+                {},
                 { hasVialSetQmkSetting: true, hasVialKbSave: true, saveThrows: true }
             );
             await sandbox.global.runSetQmkSetting("aSetting", "val", {});
@@ -317,7 +302,8 @@ describe('qmk_setting_set.js command tests', () => {
         });
         it('should error if USB open fails', async () => {
             setupTestEnvironment();
-            mockUsb.open = async () => false; // Override usb mock
+            // Mock the openDeviceConnection to fail
+            sandbox.global.deviceSelection.openDeviceConnection = async () => false;
             await sandbox.global.runSetQmkSetting("any", "val", {});
             assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
             assert.strictEqual(mockProcessExitCode, 1);

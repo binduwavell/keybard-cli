@@ -1,15 +1,7 @@
 const { assert } = require('chai');
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 const MAX_MACRO_SLOTS_IN_TEST = 16;
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
 
 describe('macro_add.js command tests', () => {
     let sandbox;
@@ -48,12 +40,7 @@ describe('macro_add.js command tests', () => {
         vialMacroMethodOverrides = {},
         vialKbMethodOverrides = {}
     ) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        mockUsb = createMockUSBSingleDevice();
 
         const defaultKbinfo = {
             macro_count: MAX_MACRO_SLOTS_IN_TEST,
@@ -100,26 +87,18 @@ describe('macro_add.js command tests', () => {
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: { ...mockVial, macro: mockVialMacro, kb: mockVialKb },
             KEY: mockKey,
             fs: {},
             runInitializers: () => {},
             MAX_MACRO_SLOTS: MAX_MACRO_SLOTS_IN_TEST,
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            require: require,
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/macro_add.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/macro_add.js']);
     }
 
     beforeEach(() => {
@@ -273,7 +252,8 @@ describe('macro_add.js command tests', () => {
 
     it('should error if USB open fails', async () => {
         setupTestEnvironment();
-        mockUsb.open = async () => false;
+        // Mock the openDeviceConnection to fail
+        sandbox.global.deviceSelection.openDeviceConnection = async () => false;
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
@@ -286,19 +266,13 @@ describe('macro_add.js command tests', () => {
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             // Missing USB, Vial, etc.
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            },
-            global: {}
-        });
-        loadScriptInContext('lib/macro_add.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/macro_add.js']);
 
         // Check if the function was exposed despite missing objects
         if (sandbox.global.runAddMacro) {

@@ -1,50 +1,37 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path');
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 describe('keymap_get.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockKey; 
+    let mockKey;
     let mockFs;
     let consoleLogOutput;
     let consoleErrorOutput;
     let mockProcessExitCode;
 
     function setupTestEnvironment(mockKbinfoOverrides = {}) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        mockUsb = createMockUSBSingleDevice();
 
         const defaultMockKbinfo = {
             rows: 2,
             cols: 2,
             layers: 2,
             keymap: [
-                ["KC_A", "KC_B", "KC_C", "KC_D"], 
-                ["KC_E", "KC_F", "KC_G", "KC_H"]  
+                ["KC_A", "KC_B", "KC_C", "KC_D"],
+                ["KC_E", "KC_F", "KC_G", "KC_H"]
             ],
             someVialInitProp: "initialized",
             someVialLoadProp: "loaded"
         };
-        
+
         const effectiveMockKbinfo = {...defaultMockKbinfo, ...mockKbinfoOverrides };
 
         mockVial = {
-            init: async (kbinfoRef) => { 
-                Object.assign(kbinfoRef, { 
-                    rows: effectiveMockKbinfo.rows, 
+            init: async (kbinfoRef) => {
+                Object.assign(kbinfoRef, {
+                    rows: effectiveMockKbinfo.rows,
                     cols: effectiveMockKbinfo.cols,
                     layers: effectiveMockKbinfo.layers,
                     someVialInitProp: effectiveMockKbinfo.someVialInitProp
@@ -52,19 +39,19 @@ describe('keymap_get.js command tests', () => {
             },
             load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
-                    keymap: effectiveMockKbinfo.keymap, 
-                    layers: effectiveMockKbinfo.layers, 
+                    keymap: effectiveMockKbinfo.keymap,
+                    layers: effectiveMockKbinfo.layers,
                     someVialLoadProp: effectiveMockKbinfo.someVialLoadProp
                 });
             }
         };
 
         mockKey = {
-            stringify: (keycode) => `STR(${keycode})`, 
+            stringify: (keycode) => `STR(${keycode})`,
         };
 
         mockFs = {
-            writeFileSync: (filepath, data) => { 
+            writeFileSync: (filepath, data) => {
                 // In Mocha, spies are better handled with sinon in beforeEach if needed for verification
                 // For now, this mock is simple if tests primarily check console output or errors
                 mockFs.lastWritePath = filepath;
@@ -76,23 +63,17 @@ describe('keymap_get.js command tests', () => {
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: mockVial,
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {}, 
-            process: { 
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/keymap_get.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/keymap_get.js']);
     }
 
     beforeEach(() => {
@@ -107,21 +88,22 @@ describe('keymap_get.js command tests', () => {
     });
 
     it('should report error if USB open fails', async () => {
-        mockUsb.open = async () => false; // Override for this test
+        // Mock the openDeviceConnection to fail
+        sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runGetKeymap({});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")), "No USB open error");
         assert.strictEqual(mockProcessExitCode, 1, "process.exitCode not set to 1 on USB open fail");
     });
 
     it('should error if Vial.load fails to provide keymap', async () => {
-        setupTestEnvironment({ keymap: undefined }); 
+        setupTestEnvironment({ keymap: undefined });
         await sandbox.global.runGetKeymap({});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Keymap data not fully populated")), "Missing keymap data error");
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should output all layers in JSON format to console by default or when specified', async () => {
-        await sandbox.global.runGetKeymap({ format: 'json' }); 
+        await sandbox.global.runGetKeymap({ format: 'json' });
         const expectedJson = JSON.stringify([
             ["KC_A", "KC_B", "KC_C", "KC_D"],
             ["KC_E", "KC_F", "KC_G", "KC_H"]
@@ -145,7 +127,7 @@ describe('keymap_get.js command tests', () => {
     it('should output a specific layer in JSON format to console', async () => {
         await sandbox.global.runGetKeymap({ layer: '1', format: 'json' });
         const expectedJson = JSON.stringify([
-            ["KC_E", "KC_F", "KC_G", "KC_H"] 
+            ["KC_E", "KC_F", "KC_G", "KC_H"]
         ], null, 2);
         assert.strictEqual(consoleLogOutput.join('\n'), expectedJson, "JSON specific layer console output mismatch");
         assert.strictEqual(mockProcessExitCode, 0);
@@ -162,13 +144,13 @@ describe('keymap_get.js command tests', () => {
     });
 
     it('should error for an invalid layer number', async () => {
-        await sandbox.global.runGetKeymap({ layer: '99', format: 'json' }); 
+        await sandbox.global.runGetKeymap({ layer: '99', format: 'json' });
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Invalid layer number. Must be between 0 and 1.")), "Invalid layer error message");
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
     it('should error for an unsupported format option', async () => {
-        await sandbox.global.runGetKeymap({ format: 'yaml' }); 
+        await sandbox.global.runGetKeymap({ format: 'yaml' });
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Unsupported format 'yaml'.")), "Invalid format error message");
         assert.strictEqual(mockProcessExitCode, 1);
     });
@@ -176,7 +158,7 @@ describe('keymap_get.js command tests', () => {
     it('should write all layers in JSON format to a file', async () => {
         const testOutputFile = "keymap_out.json";
         await sandbox.global.runGetKeymap({ format: 'json', outputFile: testOutputFile });
-        
+
         const expectedJson = JSON.stringify([
             ["KC_A", "KC_B", "KC_C", "KC_D"],
             ["KC_E", "KC_F", "KC_G", "KC_H"]
@@ -190,7 +172,7 @@ describe('keymap_get.js command tests', () => {
     it('should write a specific layer in text format to a file', async () => {
         const testOutputFile = "keymap_layer0.txt";
         await sandbox.global.runGetKeymap({ layer: '0', format: 'text', outputFile: testOutputFile });
-        
+
         assert.strictEqual(mockFs.lastWritePath, testOutputFile);
         assert.include(mockFs.lastWriteData, "Layer 0:", "File Text specific layer missing Layer 0 header");
         assert.include(mockFs.lastWriteData, "  KC_A           KC_B           ", "File Text specific layer, Row 0 mismatch");

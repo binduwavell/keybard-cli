@@ -1,14 +1,6 @@
 // test/test_download_file.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path');
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 describe('keyboard_download.js command tests', () => {
     let sandbox;
@@ -30,18 +22,15 @@ describe('keyboard_download.js command tests', () => {
 
     function setupTestEnvironment({
         mockKbinfoData = {},
-        vialConfig = {}, 
+        vialConfig = {},
         fsConfig = {},
-        keyConfig = { hasStringify: true } 
+        keyConfig = { hasStringify: true }
     } = {}) {
         mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true,
+            ...createMockUSBSingleDevice(),
             ...(vialConfig.usbOverrides || {})
         };
-        
+
         spyFsWriteFileSync = null;
         mockFs = {
             readFileSync: () => { throw new Error("readFileSync should not be called by keyboard_download.js"); },
@@ -51,26 +40,26 @@ describe('keyboard_download.js command tests', () => {
             }
         };
 
-        mockPath = { 
+        mockPath = {
             extname: (p) => {
                 const dotIndex = p.lastIndexOf('.');
                 return dotIndex < 0 ? '' : p.substring(dotIndex);
             }
         };
-        
+
         spyKeyStringifyCalls = [];
         mockKey = {
-            parse: (str) => `parsed_${str}`, 
-            stringify: keyConfig.hasStringify ? 
-                (numKeyCode) => { 
-                    spyKeyStringifyCalls.push(numKeyCode); 
-                    return `KC_CODE_${numKeyCode}`; 
-                } 
+            parse: (str) => `parsed_${str}`,
+            stringify: keyConfig.hasStringify ?
+                (numKeyCode) => {
+                    spyKeyStringifyCalls.push(numKeyCode);
+                    return `KC_CODE_${numKeyCode}`;
+                }
                 : undefined
         };
-        
+
         mockVial = {
-            init: async (kbinfoRef) => { 
+            init: async (kbinfoRef) => {
                 kbinfoRef.layers = mockKbinfoData.layers;
                 kbinfoRef.rows = mockKbinfoData.rows;
                 kbinfoRef.cols = mockKbinfoData.cols;
@@ -78,41 +67,38 @@ describe('keyboard_download.js command tests', () => {
                 kbinfoRef.vid = mockKbinfoData.vid;
                 kbinfoRef.pid = mockKbinfoData.pid;
             },
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 if (vialConfig.loadThrows) throw new Error("Simulated Vial.load error");
-                Object.assign(kbinfoRef, mockKbinfoData); 
+                Object.assign(kbinfoRef, mockKbinfoData);
             },
-            kb: {}, 
+            kb: {},
             ...(vialConfig.vialOverrides || {})
         };
-        
+
         consoleLogOutput = [];
         consoleErrorOutput = [];
         consoleInfoOutput = [];
         consoleWarnOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: mockVial,
-            KEY: mockKey, 
-            fs: mockFs, 
-            path: mockPath, 
+            KEY: mockKey,
+            fs: mockFs,
+            path: mockPath,
             runInitializers: () => {},
             console: {
                 log: (...args) => consoleLogOutput.push(args.join(' ')),
                 error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleWarnOutput.push(args.join(' ')), 
-                info: (...args) => consoleInfoOutput.push(args.join(' ')), 
+                warn: (...args) => consoleWarnOutput.push(args.join(' ')),
+                info: (...args) => consoleInfoOutput.push(args.join(' ')),
             },
-            global: {},
-            require: require, 
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/keyboard_download.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/keyboard_download.js']);
     }
 
     beforeEach(() => {
@@ -131,7 +117,7 @@ describe('keyboard_download.js command tests', () => {
             qmk_settings: { "brightness": 100, "rgb_effect": "solid" }
         };
         setupTestEnvironment({ mockKbinfoData: mockData, keyConfig: { hasStringify: true } });
-        
+
         const filepath = "output.svl";
         await sandbox.global.runDownloadFile(filepath, {});
 
@@ -158,7 +144,7 @@ describe('keyboard_download.js command tests', () => {
         const numericKeymap = [ [1, 2], [3, 4] ];
         const mockData = { layers: 1, rows: 2, cols: 2, keymap: [ numericKeymap.flat() ] };
         setupTestEnvironment({ mockKbinfoData: mockData, keyConfig: { hasStringify: false } });
-        
+
         await sandbox.global.runDownloadFile("output.svl", {});
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
@@ -171,7 +157,7 @@ describe('keyboard_download.js command tests', () => {
         const stringKeymap = [ ["KC_A", "KC_B"], ["KC_C", "KC_D"] ];
         const mockData = { layers: 1, rows: 2, cols: 2, keymap: [ stringKeymap.flat() ] };
         setupTestEnvironment({ mockKbinfoData: mockData, keyConfig: { hasStringify: false } });
-        
+
         await sandbox.global.runDownloadFile("output.svl", {});
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
@@ -184,7 +170,7 @@ describe('keyboard_download.js command tests', () => {
         const mockData = { layers: 0, rows: 0, cols: 0, qmk_settings: { "setting1": "value1" } };
         setupTestEnvironment({ mockKbinfoData: mockData, keyConfig: { hasStringify: true } });
         await sandbox.global.runDownloadFile("output.svl", {});
-        
+
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
         assert.isTrue(consoleWarnOutput.some(line => line.includes("Warning: Keymap data or dimensions not found")));
@@ -196,7 +182,7 @@ describe('keyboard_download.js command tests', () => {
         assert.deepStrictEqual(savedData.qmk_settings, mockData.qmk_settings);
         assert.strictEqual(mockProcessExitCode, 0);
     });
-    
+
     it('should handle zero-size keymap correctly', async () => {
         const mockData = { layers: 2, rows: 0, cols: 0, keymap: [[], []] };
         setupTestEnvironment({ mockKbinfoData: mockData });
@@ -220,9 +206,9 @@ describe('keyboard_download.js command tests', () => {
     });
 
     it('should error if fs.writeFileSync throws', async () => {
-        setupTestEnvironment({ 
+        setupTestEnvironment({
             mockKbinfoData: { layers: 0, rows: 0, cols: 0, keymap: [] },
-            fsConfig: { writeFileSyncThrows: true } 
+            fsConfig: { writeFileSyncThrows: true }
         });
         await sandbox.global.runDownloadFile("output.svl", {});
         assert.ok(spyFsWriteFileSync); // Should still be attempted

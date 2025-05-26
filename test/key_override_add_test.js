@@ -1,16 +1,8 @@
 // test/test_add_key_override.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 const MAX_KEY_OVERRIDE_SLOTS_IN_TEST = 8;
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
 
 describe('key_override_add.js command tests', () => {
     let sandbox;
@@ -45,12 +37,7 @@ describe('key_override_add.js command tests', () => {
         vialKeyOverrideMethodOverrides = {},
         vialKbMethodOverrides = {}
     ) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        mockUsb = createMockUSBSingleDevice();
 
         const defaultKbinfo = {
             key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST,
@@ -99,26 +86,18 @@ describe('key_override_add.js command tests', () => {
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: { ...mockVial, key_override: mockVialKeyOverride, kb: mockVialKb },
             KEY: mockKey,
             fs: {},
             runInitializers: () => {},
             MAX_KEY_OVERRIDE_SLOTS: MAX_KEY_OVERRIDE_SLOTS_IN_TEST,
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            require: require,
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/key_override_add.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/key_override_add.js']);
     }
 
     beforeEach(() => {
@@ -210,7 +189,8 @@ describe('key_override_add.js command tests', () => {
 
     it('should error if USB open fails', async () => {
         setupTestEnvironment();
-        mockUsb.open = async () => false;
+        // Mock the openDeviceConnection to fail
+        sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
         assert.strictEqual(mockProcessExitCode, 1);

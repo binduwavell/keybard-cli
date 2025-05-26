@@ -1,21 +1,13 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs'); 
-const path = require('path'); 
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 describe('macro_get.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockVialKb; 
-    let mockKey;    
-    let mockFs; 
+    let mockVialKb;
+    let mockKey;
+    let mockFs;
     let consoleLogOutput;
     let consoleErrorOutput;
     let mockProcessExitCode;
@@ -31,22 +23,17 @@ describe('macro_get.js command tests', () => {
     const sampleMacroCount = sampleMacros.length;
 
     function setupTestEnvironment(mockKbinfoData = {}, vialMethodOverrides = {}) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        mockUsb = createMockUSBSingleDevice();
 
         const defaultKbinfo = {
-            macro_count: sampleMacroCount, 
+            macro_count: sampleMacroCount,
             macros: JSON.parse(JSON.stringify(sampleMacros)), // Use deep copy of sampleMacros
-            ...mockKbinfoData 
+            ...mockKbinfoData
         };
 
         const defaultVialMethods = {
             init: async (kbinfoRef) => { /* Basic setup */ },
-            load: async (kbinfoRef) => { 
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     macro_count: defaultKbinfo.macro_count,
                     macros: JSON.parse(JSON.stringify(defaultKbinfo.macros)),
@@ -54,8 +41,8 @@ describe('macro_get.js command tests', () => {
             }
         };
         mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        
-        mockVialKb = {}; 
+
+        mockVialKb = {};
         mockKey = { /* KEY object exists, stringify/parse not directly used by get_macro.js logic */ };
 
         spyWriteFileSyncPath = null;
@@ -71,23 +58,17 @@ describe('macro_get.js command tests', () => {
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
-            Vial: { ...mockVial, kb: mockVialKb }, 
+            Vial: { ...mockVial, kb: mockVialKb },
             KEY: mockKey,
-            fs: mockFs, 
+            fs: mockFs,
             runInitializers: () => {},
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/macro_get.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/macro_get.js']);
     }
 
     beforeEach(() => {
@@ -95,14 +76,14 @@ describe('macro_get.js command tests', () => {
     });
 
     it('should get macro in text format to console when it exists', async () => {
-        await sandbox.global.runGetMacro("0", { format: 'text' }); 
+        await sandbox.global.runGetMacro("0", { format: 'text' });
         const output = consoleLogOutput.join('\n');
         assert.include(output, "Macro 0: Tap(KC_A) Text(\"Hello\")", "Output mismatch.");
         assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
     });
 
     it('should get macro in JSON format to console when it exists', async () => {
-        await sandbox.global.runGetMacro("1", { format: 'json' }); 
+        await sandbox.global.runGetMacro("1", { format: 'json' });
         const expectedJson = JSON.stringify(sampleMacros[1], null, 2);
         assert.strictEqual(consoleLogOutput.join('\n'), expectedJson, "JSON output mismatch.");
         assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
@@ -128,7 +109,7 @@ describe('macro_get.js command tests', () => {
     });
 
     it('should error if macro ID is not found', async () => {
-        await sandbox.global.runGetMacro("99", {}); 
+        await sandbox.global.runGetMacro("99", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Macro with ID 99 not found. Available IDs: 0-1.")), "Error message missing.");
         assert.strictEqual(mockProcessExitCode, 1);
     });
@@ -170,7 +151,7 @@ describe('macro_get.js command tests', () => {
         const outputPath = "macro_error.txt";
         const expectedFileErrorMessage = "Disk full";
         mockFs.writeFileSync = () => { throw new Error(expectedFileErrorMessage); }; // Override mockFs for this test
-        
+
         await sandbox.global.runGetMacro("0", { outputFile: outputPath });
 
         assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing macro data to file "${outputPath}": ${expectedFileErrorMessage}`)), "Error message missing.");

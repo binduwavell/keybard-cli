@@ -1,14 +1,6 @@
 // test/test_upload_file.js
 const { assert } = require('chai');
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
 
 describe('keyboard_upload.js command tests', () => {
     let sandbox;
@@ -62,10 +54,7 @@ describe('keyboard_upload.js command tests', () => {
         usbConfig = {}
     } = {}) {
         mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true,
+            ...createMockUSBSingleDevice(),
             ...(usbConfig.overrides || {})
         };
 
@@ -238,7 +227,7 @@ describe('keyboard_upload.js command tests', () => {
         consoleWarnOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: mockVial,
             KEY: mockKey,
@@ -251,14 +240,11 @@ describe('keyboard_upload.js command tests', () => {
                 warn: (...args) => consoleWarnOutput.push(args.join(' ')),
                 info: (...args) => consoleInfoOutput.push(args.join(' ')),
             },
-            global: {},
-            require: require,
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/keyboard_upload.js', sandbox);
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/keyboard_upload.js']);
     }
 
     beforeEach(() => {
@@ -310,9 +296,9 @@ describe('keyboard_upload.js command tests', () => {
     });
 
     it('should error if USB open fails', async () => {
-        setupTestEnvironment({
-            usbConfig: { overrides: { open: async () => false } }
-        });
+        setupTestEnvironment();
+        // Mock the openDeviceConnection to fail
+        sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runUploadFile("test.svl", {});
         assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
         assert.strictEqual(mockProcessExitCode, 1);
@@ -323,22 +309,15 @@ describe('keyboard_upload.js command tests', () => {
         consoleErrorOutput = [];
         mockProcessExitCode = undefined;
 
-        sandbox = vm.createContext({
-            // Missing USB, Vial, etc. but include require to avoid early ReferenceError
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            },
-            require: require, // Include require so script can load
-            global: {}
-        });
+        sandbox = createSandboxWithDeviceSelection({
+            // Missing USB, Vial, etc.
+            consoleLogOutput,
+            consoleErrorOutput,
+            mockProcessExitCode,
+            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+        }, ['lib/keyboard_upload.js']);
 
         try {
-            loadScriptInContext('lib/keyboard_upload.js', sandbox);
 
             if (sandbox.global.runUploadFile) {
                 try {
