@@ -2,7 +2,8 @@ const { expect } = require('chai');
 const {
     createBasicSandbox,
     createTestState,
-    loadScriptInContext
+    loadScriptInContext,
+    createMockUSBNoDevices
 } = require('./test-helpers');
 
 describe('command-utils.js tests', () => {
@@ -13,12 +14,7 @@ describe('command-utils.js tests', () => {
     function setupTestEnvironment() {
         testState = createTestState();
 
-        mockUSB = {
-            list: () => [],
-            open: async () => true,
-            close: () => {},
-            device: null
-        };
+        mockUSB = createMockUSBNoDevices();
 
         mockVial = {
             init: async () => {},

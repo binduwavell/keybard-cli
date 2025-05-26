@@ -2,7 +2,8 @@ const { expect } = require('chai');
 const {
     createTestState,
     assertErrorMessage,
-    assertLogMessage
+    assertLogMessage,
+    createMockUSBNoDevices
 } = require('./test-helpers');
 
 // Mock debug function for testing
@@ -247,9 +248,7 @@ describe('device-selection.js tests', () => {
             console.log = (...args) => testState.consoleLogOutput.push(args.join(' '));
             console.error = (...args) => testState.consoleErrorOutput.push(args.join(' '));
 
-            mockUSB = {
-                list: () => []
-            };
+            mockUSB = createMockUSBNoDevices();
         });
 
         afterEach(() => {
@@ -382,6 +381,7 @@ describe('device-selection.js tests', () => {
 
         beforeEach(() => {
             mockUSB = {
+                ...createMockUSBNoDevices(),
                 open: async () => true,
                 openCalled: false,
                 openCalledWith: null

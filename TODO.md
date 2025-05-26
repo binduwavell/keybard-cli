@@ -184,10 +184,13 @@ mockUsb = createMockUSBSingleDevice();
 ```
 
 ### Tasks:
-- [ ] Migrate `test/tapdance_add_test.js` to use `createMockUSBSingleDevice()`
-- [ ] Migrate `test/keyboard_download_test.js` to use `createMockUSBSingleDevice()`
-- [ ] Migrate `test/keyboard_upload_test.js` to use `createMockUSBSingleDevice()`
-- [ ] Migrate `test/key_override_list_test.js` to use `createMockUSBSingleDevice()`
+- [x] Migrate `test/tapdance_add_test.js` to use `createMockUSBSingleDevice()`
+- [x] Migrate `test/keyboard_download_test.js` to use `createMockUSBSingleDevice()`
+- [x] Migrate `test/keyboard_upload_test.js` to use `createMockUSBSingleDevice()`
+- [x] Migrate `test/key_override_list_test.js` to use `createMockUSBSingleDevice()`
+- [x] Audit remaining test files for manual USB mock creation and add tasks below this task for each file that needs to be updated
+- [x] Migrate `test/command_utils_test.js` to use `createMockUSBSingleDevice()` or appropriate helper
+- [x] Migrate `test/device_selection_test.js` to use `createMockUSBSingleDevice()` or appropriate helper
 
 ## Priority 3: Vial Mock Standardization
 
@@ -208,8 +211,19 @@ mockVial = createMockVial(defaultKbinfo, vialMethodOverrides);
 ```
 
 ### Tasks:
-- [ ] Audit test files for manual Vial mock creation patterns, add each file as an incomplete task after this task
-- [ ] Migrate identified files to use `createMockVial()` where appropriate
+- [x] Audit test files for manual Vial mock creation patterns, add each file as an incomplete task after this task indicating that we should Migrate identified files to use `createMockVial()` where appropriate
+- [ ] Migrate `test/combo_add_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/keymap_download_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/key_override_add_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/key_override_edit_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/key_override_list_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/macro_add_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/macro_delete_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/macro_edit_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/macro_get_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/qmk_setting_get_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/qmk_setting_list_test.js` to use `createMockVial()` where appropriate
+- [ ] Migrate `test/tapdance_add_test.js` to use `createMockVial()` where appropriate
 - [ ] Document any complex Vial mock requirements that need helper enhancements
 
 ## Priority 4: File System Mock Standardization
@@ -234,8 +248,8 @@ mockFs = createMockFS({ spyWriteCalls });
 ```
 
 ### Tasks:
-- [ ] Identify test files that manually create file system mocks, add each file as an incomplete task after this task
-- [ ] Migrate to use `createMockFS()` helper
+- [ ] Identify test files that manually create file system mocks, add each file as an incomplete task after this task indicating that we should
+Migrate to use `createMockFS()` helper
 - [ ] Enhance `createMockFS()` if additional capabilities are needed
 
 ## Priority 5: Documentation and Guidelines

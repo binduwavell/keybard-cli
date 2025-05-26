@@ -1,7 +1,8 @@
 const { assert } = require('chai');
 const {
     createSandboxWithDeviceSelection,
-    createTestState
+    createTestState,
+    createMockUSBSingleDevice
 } = require('./test-helpers');
 
 const MAX_TAPDANCE_SLOTS_IN_TEST = 4;
@@ -52,7 +53,7 @@ describe('tapdance_add.js command tests', () => {
         vialTapdanceOverrides = {},
         vialKbMethodOverrides = {}
     ) {
-        mockUsb = { list: () => [{ path: 'mockpath' }], open: async () => true, close: () => {} };
+        mockUsb = createMockUSBSingleDevice();
 
         let initialTdsProcessed;
         if (mockKbinfoInitial.tapdances) {
