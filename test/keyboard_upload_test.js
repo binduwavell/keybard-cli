@@ -20,14 +20,13 @@ describe('keyboard_upload.js command tests', () => {
     let spyFsReadFileSync;
     let spyVialApplyVilData;
     let spyVialKeymapApplyVil;
-    let spyVialKbSetFullKeymap;
+    let spyVialApiUpdateKeyCalls;
     let spyVialMacroPush;
     let spyVialKeyOverridePush;
     let spyVialSetQmkSetting;
     let spyVialKbSetQmkSetting;
     let spyVialQmkSettingsPush;
     let spyVialSettingsPush;
-    let spyVialKbSaveKeymap;
     let spyVialKbSaveMacros;
     let spyVialKbSaveKeyOverrides;
     let spyVialKbSaveQmkSettings;
@@ -62,14 +61,13 @@ describe('keyboard_upload.js command tests', () => {
         spyFsReadFileSync = null;
         spyVialApplyVilData = null;
         spyVialKeymapApplyVil = null;
-        spyVialKbSetFullKeymap = null;
+        spyVialApiUpdateKeyCalls = [];
         spyVialMacroPush = null;
         spyVialKeyOverridePush = null;
         spyVialSetQmkSetting = [];
         spyVialKbSetQmkSetting = [];
         spyVialQmkSettingsPush = null;
         spyVialSettingsPush = null;
-        spyVialKbSaveKeymap = false;
         spyVialKbSaveMacros = false;
         spyVialKbSaveKeyOverrides = false;
         spyVialKbSaveQmkSettings = false;
@@ -105,6 +103,12 @@ describe('keyboard_upload.js command tests', () => {
                 if (vialConfig.loadThrows) throw new Error("Simulated Vial.load error");
                 Object.assign(kbinfoRef, mockKbinfoData);
             },
+            api: {
+                updateKey: async (layer, row, col, keycode) => {
+                    spyVialApiUpdateKeyCalls.push({ layer, row, col, keycode });
+                    if (vialConfig.updateKeyThrows) throw new Error("Simulated updateKey error");
+                }
+            },
             kb: {},
             macro: {},
             keyoverride: {},
@@ -129,12 +133,7 @@ describe('keyboard_upload.js command tests', () => {
             };
         }
 
-        if (vialConfig.hasKbSetFullKeymap) {
-            mockVial.kb.setFullKeymap = async (data) => {
-                spyVialKbSetFullKeymap = JSON.parse(JSON.stringify(data));
-                if (vialConfig.setFullKeymapThrows) throw new Error("Simulated setFullKeymap error");
-            };
-        }
+
 
         if (vialConfig.hasMacroPush) {
             mockVial.macro.push = async (kbinfo) => {
@@ -179,12 +178,6 @@ describe('keyboard_upload.js command tests', () => {
         }
 
         // Save methods
-        if (vialConfig.hasKbSaveKeymap) {
-            mockVial.kb.saveKeymap = async () => {
-                spyVialKbSaveKeymap = true;
-                if (vialConfig.saveKeymapThrows) throw new Error("Simulated saveKeymap error");
-            };
-        }
 
         if (vialConfig.hasKbSaveMacros) {
             mockVial.kb.saveMacros = async () => {
@@ -366,13 +359,13 @@ describe('keyboard_upload.js command tests', () => {
             const vilContent = "vil_data_content";
             setupTestEnvironment({
                 fileConfig: { path: 'keymap.vil', content: vilContent },
-                vialConfig: { hasApplyVilData: true, hasKbSaveKeymap: true }
+                vialConfig: { hasApplyVilData: true, hasKbSave: true }
             });
 
             await sandbox.global.runUploadFile("keymap.vil", {});
 
             assert.strictEqual(spyVialApplyVilData, vilContent);
-            assert.strictEqual(spyVialKbSaveKeymap, true);
+            assert.strictEqual(spyVialKbSave, true);
             assert.isTrue(consoleInfoOutput.some(line => line.includes("Vial.applyVilData called.")));
             assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
             assert.strictEqual(mockProcessExitCode, 0);
@@ -440,14 +433,26 @@ describe('keyboard_upload.js command tests', () => {
             setupTestEnvironment({
                 mockKbinfoData: { layers: 2, rows: 1, cols: 2, keymap_size: 4 },
                 fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
-                vialConfig: { hasKbSetFullKeymap: true, hasKbSaveKeymap: true }
+                vialConfig: {}
             });
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isNotNull(spyVialKbSetFullKeymap);
+            // Check that updateKey was called for each key
+            assert.strictEqual(spyVialApiUpdateKeyCalls.length, 4);
             assert.deepStrictEqual(spyKeyParseCalls, ["KC_A", "KC_B", "KC_C", "KC_D"]);
-            assert.strictEqual(spyVialKbSaveKeymap, true);
+
+            // Verify the updateKey calls for each position
+            // Layer 0: KC_A at (0,0), KC_B at (0,1)
+            // Layer 1: KC_C at (0,0), KC_D at (0,1)
+            const expectedCalls = [
+                { layer: 0, row: 0, col: 0, keycode: mockKeyParseImplementation("KC_A") },
+                { layer: 0, row: 0, col: 1, keycode: mockKeyParseImplementation("KC_B") },
+                { layer: 1, row: 0, col: 0, keycode: mockKeyParseImplementation("KC_C") },
+                { layer: 1, row: 0, col: 1, keycode: mockKeyParseImplementation("KC_D") }
+            ];
+            assert.deepStrictEqual(spyVialApiUpdateKeyCalls, expectedCalls);
+
             assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: succeeded")));
             assert.strictEqual(mockProcessExitCode, 0);
         });
@@ -457,7 +462,7 @@ describe('keyboard_upload.js command tests', () => {
             setupTestEnvironment({
                 mockKbinfoData: { layers: 2, rows: 1, cols: 1, keymap_size: 2 }, // Expects 2 layers
                 fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
-                vialConfig: { hasKbSetFullKeymap: true }
+                vialConfig: {}
             });
 
             await sandbox.global.runUploadFile("test.svl", {});
@@ -471,7 +476,7 @@ describe('keyboard_upload.js command tests', () => {
             setupTestEnvironment({
                 mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1 },
                 fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
-                vialConfig: { hasKbSetFullKeymap: true }
+                vialConfig: {}
             });
 
             await sandbox.global.runUploadFile("test.svl", {});
@@ -480,44 +485,48 @@ describe('keyboard_upload.js command tests', () => {
             assert.strictEqual(mockProcessExitCode, 1);
         });
 
-        it('should warn if keymap set but no save function found', async () => {
+        it('should succeed keymap upload with updateKey (no separate save needed)', async () => {
             const svlData = { keymap: [["KC_A"]] };
             setupTestEnvironment({
                 mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1 },
                 fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
-                vialConfig: { hasKbSetFullKeymap: true } // No save function
+                vialConfig: {}
             });
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: warning (Set but no keymap save function found.)")));
+            assert.strictEqual(spyVialApiUpdateKeyCalls.length, 1);
+            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: succeeded")));
             assert.strictEqual(mockProcessExitCode, 0);
         });
 
-        it('should skip keymap if setFullKeymap not available', async () => {
+        it('should skip keymap if updateKey not available', async () => {
             const svlData = { keymap: [["KC_A"]] };
             setupTestEnvironment({
                 fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
-                vialConfig: {} // No setFullKeymap
+                vialConfig: {}
             });
+
+            // Remove the updateKey function to simulate it not being available
+            mockVial.api = {};
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: skipped (Vial.kb.setFullKeymap not available.)")));
+            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: skipped (Vial.api.updateKey not available.)")));
             assert.strictEqual(mockProcessExitCode, 0);
         });
 
-        it('should handle error during setFullKeymap', async () => {
+        it('should handle error during updateKey', async () => {
             const svlData = { keymap: [["KC_A"]] };
             setupTestEnvironment({
                 mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1 },
                 fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
-                vialConfig: { hasKbSetFullKeymap: true, setFullKeymapThrows: true }
+                vialConfig: { updateKeyThrows: true }
             });
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: failed (Simulated setFullKeymap error)")));
+            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: failed (Simulated updateKey error)")));
             assert.strictEqual(mockProcessExitCode, 1);
         });
     });
@@ -722,7 +731,6 @@ describe('keyboard_upload.js command tests', () => {
             mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1, qmk_settings: {} },
             fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
             vialConfig: {
-                hasKbSetFullKeymap: true, hasKbSaveKeymap: true,
                 hasMacroPush: true, hasKbSaveMacros: true,
                 hasKeyOverridePush: true, hasKbSaveKeyOverrides: true,
                 hasSetQmkSetting: true, hasKbSaveQmkSettings: true
@@ -731,7 +739,8 @@ describe('keyboard_upload.js command tests', () => {
 
         await sandbox.global.runUploadFile("test.svl", {});
 
-        assert.isNotNull(spyVialKbSetFullKeymap);
+        // Check that updateKey was called for keymap
+        assert.strictEqual(spyVialApiUpdateKeyCalls.length, 1);
         assert.isNotNull(spyVialMacroPush);
         assert.isNotNull(spyVialKeyOverridePush);
         assert.strictEqual(spyVialSetQmkSetting.length, 1);
@@ -752,7 +761,6 @@ describe('keyboard_upload.js command tests', () => {
             mockKbinfoData: { layers: 1, rows: 1, cols: 1, keymap_size: 1 },
             fileConfig: { path: 'test.svl', content: JSON.stringify(svlData) },
             vialConfig: {
-                hasKbSetFullKeymap: true, hasKbSaveKeymap: true,
                 hasMacroPush: true, hasKbSaveMacros: true
             }
         });

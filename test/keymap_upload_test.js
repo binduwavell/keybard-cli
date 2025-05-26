@@ -5,7 +5,7 @@ describe('keymap_upload.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
-    let mockVialKb;
+    let mockVialApi;
     let mockKey;
     let mockFs;
     let consoleLogOutput;
@@ -15,13 +15,12 @@ describe('keymap_upload.js command tests', () => {
     // Spy variables
     let spyKeyParseCallCount;
     let spyKeyParseLastArg;
-    let spySetFullKeymapArgs;
-    let spySaveKeymapCalled;
+    let spyUpdateKeyCalls;
     let spyFsReadFileSyncPath;
 
     function setupTestEnvironment(
         mockKbinfoOverrides = {},
-        vialKbOverrides = {},
+        vialApiOverrides = {},
         vialMethodOverrides = {},
         keyParseBehavior = null
     ) {
@@ -32,7 +31,7 @@ describe('keymap_upload.js command tests', () => {
 
         const defaultMockVialMethods = {
             init: async (kbinfoRef) => {},
-            getKeyboardInfo: async (kbinfoRef) => {
+            load: async (kbinfoRef) => {
                 Object.assign(kbinfoRef, {
                     rows: effectiveMockKbinfo.rows,
                     cols: effectiveMockKbinfo.cols,
@@ -42,12 +41,12 @@ describe('keymap_upload.js command tests', () => {
         };
         mockVial = { ...defaultMockVialMethods, ...vialMethodOverrides };
 
-        spySetFullKeymapArgs = null;
-        spySaveKeymapCalled = false;
-        mockVialKb = {
-            setFullKeymap: async (keymap) => { spySetFullKeymapArgs = keymap; },
-            saveKeymap: async () => { spySaveKeymapCalled = true; },
-            ...vialKbOverrides
+        spyUpdateKeyCalls = [];
+        mockVialApi = {
+            updateKey: async (layer, row, col, keycode) => {
+                spyUpdateKeyCalls.push({ layer, row, col, keycode });
+            },
+            ...vialApiOverrides
         };
 
         spyKeyParseCallCount = 0;
@@ -80,7 +79,7 @@ describe('keymap_upload.js command tests', () => {
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
-            Vial: { ...mockVial, kb: mockVialKb },
+            Vial: { ...mockVial, api: mockVialApi, kb: {} },
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
@@ -113,10 +112,14 @@ describe('keymap_upload.js command tests', () => {
 
         assert.strictEqual(spyFsReadFileSyncPath, "valid_keymap.json", "spyFsReadFileSyncPath incorrect");
         assert.strictEqual(spyKeyParseCallCount, 2, "spyKeyParseCallCount incorrect");
-        const expectedArgsInTest = [[expectedKeycodeKC_A, expectedKeycodeKC_B]];
-        assert.strictEqual(JSON.stringify(spySetFullKeymapArgs), JSON.stringify(expectedArgsInTest), "setFullKeymap arguments mismatch");
-        assert.isTrue(spySaveKeymapCalled, "saveKeymap not called");
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Keymap uploaded and saved successfully.")), "No success message");
+
+        // Check that updateKey was called for each key
+        assert.strictEqual(spyUpdateKeyCalls.length, 2, "updateKey should be called twice");
+        // Position 0: row=0, col=0, Position 1: row=0, col=1 (in 1x2 grid)
+        assert.deepStrictEqual(spyUpdateKeyCalls[0], { layer: 0, row: 0, col: 0, keycode: expectedKeycodeKC_A });
+        assert.deepStrictEqual(spyUpdateKeyCalls[1], { layer: 0, row: 0, col: 1, keycode: expectedKeycodeKC_B });
+
+        assert.isTrue(consoleLogOutput.some(line => line.includes("Full keymap uploaded successfully")), "No success message");
         assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
     });
 
@@ -156,7 +159,7 @@ describe('keymap_upload.js command tests', () => {
     });
 
     it('should error if getKeyboardInfo fails', async () => {
-        setupTestEnvironment({}, {}, { getKeyboardInfo: async () => {} }); // Override Vial method
+        setupTestEnvironment({}, {}, { load: async () => {} }); // Override Vial method to not populate kbinfo
         sandbox.fs.readFileSync = (filepath, encoding) => {
             spyFsReadFileSyncPath = filepath;
             if (filepath === "any_file.json") return JSON.stringify([ [ ["KC_A", "KC_B"] ] ]);
@@ -233,38 +236,25 @@ describe('keymap_upload.js command tests', () => {
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
-    it('should error if Vial.kb.setFullKeymap is missing', async () => {
-        setupTestEnvironment({}, { setFullKeymap: undefined }); // Vial.kb.setFullKeymap is undefined
+    it('should error if Vial.api.updateKey is missing', async () => {
+        setupTestEnvironment({}, { updateKey: undefined }); // Vial.api.updateKey is undefined
         sandbox.fs.readFileSync = (filepath) => {
             spyFsReadFileSyncPath = filepath;
             return JSON.stringify([[["KC_A", "KC_B"]]]);
         };
-        await sandbox.global.runUploadKeymap("valid_for_missing_setfull.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Vial.kb.setFullKeymap or Vial.kb.saveKeymap not found")));
+        await sandbox.global.runUploadKeymap("valid_for_missing_updatekey.json");
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("Vial.api.updateKey not found")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 
-    it('should handle error during Vial.kb.setFullKeymap', async () => {
-        setupTestEnvironment({}, { setFullKeymap: async () => { throw new Error("SetFullKeymap hardware failure"); } });
+    it('should handle error during Vial.api.updateKey', async () => {
+        setupTestEnvironment({}, { updateKey: async () => { throw new Error("UpdateKey hardware failure"); } });
         sandbox.fs.readFileSync = (filepath) => {
             spyFsReadFileSyncPath = filepath;
             return JSON.stringify([[["KC_A", "KC_B"]]]);
         };
-        await sandbox.global.runUploadKeymap("valid_for_setfull_error.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during keymap upload: Error: SetFullKeymap hardware failure")));
-        assert.isFalse(spySaveKeymapCalled, "saveKeymap should not have been called");
-        assert.strictEqual(mockProcessExitCode, 1);
-    });
-
-    it('should handle error during Vial.kb.saveKeymap', async () => {
-        setupTestEnvironment({}, { saveKeymap: async () => { throw new Error("SaveKeymap EEPROM failure"); } });
-        sandbox.fs.readFileSync = (filepath) => {
-            spyFsReadFileSyncPath = filepath;
-            return JSON.stringify([[["KC_A", "KC_B"]]]);
-        };
-        await sandbox.global.runUploadKeymap("valid_for_save_error.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during keymap upload: Error: SaveKeymap EEPROM failure")));
-        assert.isNotNull(spySetFullKeymapArgs, "setFullKeymap should have been called");
+        await sandbox.global.runUploadKeymap("valid_for_updatekey_error.json");
+        assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during keymap upload: Error: UpdateKey hardware failure")));
         assert.strictEqual(mockProcessExitCode, 1);
     });
 });
