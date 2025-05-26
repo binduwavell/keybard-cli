@@ -9,7 +9,6 @@ describe('qmk_settings_list.js command tests', () => {
     let mockFs;
     let mockKey;
     let testState;
-    let consoleInfoOutput;
 
     // Spies
     let spyFsWriteFileSync;
@@ -53,7 +52,6 @@ describe('qmk_settings_list.js command tests', () => {
         mockKey = { parse: () => 0 }; // Minimal KEY mock
 
         testState = createTestState();
-        consoleInfoOutput = [];
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -61,16 +59,7 @@ describe('qmk_settings_list.js command tests', () => {
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            console: {
-                log: (...args) => testState.consoleLogOutput.push(args.join(' ')),
-                error: (...args) => testState.consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => testState.consoleErrorOutput.push(args.join(' ')),
-                info: (...args) => consoleInfoOutput.push(args.join(' ')),
-            },
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/qmk_setting_list.js']);
     }
 
@@ -164,14 +153,14 @@ describe('qmk_settings_list.js command tests', () => {
     it('should inform if no QMK settings are found (both qmk_settings and settings undefined)', async () => {
         setupTestEnvironment({ qmk_settings: undefined, settings: undefined });
         await sandbox.global.runListQmkSettings({});
-        assert.isTrue(consoleInfoOutput.some(line => line.includes("QMK settings not available or not found on this device.")));
+        assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("QMK settings not available or not found on this device.")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should inform if QMK settings data is not an object', async () => {
         setupTestEnvironment({ qmk_settings: "this is a string" });
         await sandbox.global.runListQmkSettings({});
-        assert.isTrue(consoleInfoOutput.some(line => line.includes("QMK settings found but in an unexpected format (Type: string). Expected an object.")));
+        assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("QMK settings found but in an unexpected format (Type: string). Expected an object.")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 

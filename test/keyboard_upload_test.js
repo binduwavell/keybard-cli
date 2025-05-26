@@ -212,8 +212,6 @@ describe('keyboard_upload.js command tests', () => {
         }
 
         testState = createTestState();
-        consoleInfoOutput = [];
-        consoleWarnOutput = [];
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -222,16 +220,7 @@ describe('keyboard_upload.js command tests', () => {
             fs: mockFs,
             path: mockPath,
             runInitializers: () => {},
-            console: {
-                log: (...args) => testState.consoleLogOutput.push(args.join(' ')),
-                error: (...args) => testState.consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleWarnOutput.push(args.join(' ')),
-                info: (...args) => consoleInfoOutput.push(args.join(' ')),
-            },
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            ...testState
         }, ['lib/keyboard_upload.js']);
     }
 
@@ -359,8 +348,8 @@ describe('keyboard_upload.js command tests', () => {
 
             assert.strictEqual(spyVialApplyVilData, vilContent);
             assert.strictEqual(spyVialKbSave, true);
-            assert.isTrue(consoleInfoOutput.some(line => line.includes("Vial.applyVilData called.")));
-            assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
+            assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("Vial.applyVilData called.")));
+            assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
             assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
@@ -375,7 +364,7 @@ describe('keyboard_upload.js command tests', () => {
 
             assert.strictEqual(spyVialKeymapApplyVil, vilContent);
             assert.strictEqual(spyVialKbSave, true);
-            assert.isTrue(consoleInfoOutput.some(line => line.includes("Vial.keymap.applyVil called.")));
+            assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("Vial.keymap.applyVil called.")));
             assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
@@ -741,7 +730,7 @@ describe('keyboard_upload.js command tests', () => {
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("macros: succeeded")));
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("qmk_settings: 1 applied, 0 failed/skipped.")));
-        assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
+        assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
@@ -773,7 +762,7 @@ describe('keyboard_upload.js command tests', () => {
 
         await sandbox.global.runUploadFile("empty.svl", {});
 
-        assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
+        assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

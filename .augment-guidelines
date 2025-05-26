@@ -4,13 +4,21 @@
 # CLI Command Development
 - Avoid using require() in command files that are loaded into VM sandbox contexts - instead perform requirements in cli.js and add them to the sandbox object.
 
-# CLI Testing
-- All cli code should be accompanied by corresponding unit tests.
-- User prefers testing CLI commands directly with mocks rather than using execSync, as it's more reliable and allows better control over test conditions.
-- User prefers that unit tests should use VM sandbox mocking rather than integration tests with execSync.
-
 # Keybard Submodule
 - The @keybard/ submodule is read-only and cannot be modified - solutions must work with the existing data structures it provides.
 
 # QMK Settings
 - User prefers QMK settings to be displayed and accessed by setting name rather than numeric index for better usability.
+
+# Testing
+- All cli code should be accompanied by corresponding unit tests.
+- User prefers testing CLI commands directly with mocks rather than using execSync, as it's more reliable and allows better control over test conditions.
+- User prefers that unit tests should use VM sandbox mocking rather than integration tests with execSync.
+- User expects tests to be written for utility modules in lib/common/.
+- User wants existing broken tests to be fixed.
+- User prefers to use @test/test-helpers.js when fixing or writing tests.
+- The combo_add_test.js file serves as a good example of how to properly use the new test utilities when refactoring tests.
+- User prefers to test CLI commands on the Svalboard (device index 1) rather than the Atrius due to device-specific issues not related to the codebase.
+- User prefers to restore original state after making changes during testing - if something is modified during tests, it should be changed back to its original value.
+- User prefers to deprecate direct VM context creation in tests in favor of test helpers, wants additional helper functions like createMockPath(), and expects documentation updates to reflect preferred testing patterns.
+- User prefers to spread testState into createSandboxWithDeviceSelection config objects rather than specifying individual properties like console: testState.console for cleaner test code.

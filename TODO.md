@@ -95,6 +95,49 @@ const testState = createTestState();
 - [x] Migrate `test/key_override_add_test.js` to use `createTestState()`
 - [x] Migrate `test/key_override_edit_test.js` to use `createTestState()`
 
+## Priority 1.5: Simplify testState Usage with Spread Operator
+
+The `createTestState()` function has been enhanced to include `consoleWarnOutput`, `consoleInfoOutput`, and a pre-configured `console` object. Tests can now use the spread operator to simplify sandbox configuration instead of manually specifying individual testState properties.
+
+**Current Pattern (Verbose):**
+```javascript
+testState = createTestState();
+sandbox = createSandboxWithDeviceSelection({
+    USB: mockUsb,
+    Vial: mockVial,
+    console: {
+        log: (...args) => testState.consoleLogOutput.push(args.join(' ')),
+        error: (...args) => testState.consoleErrorOutput.push(args.join(' ')),
+        warn: (...args) => consoleWarnOutput.push(args.join(' ')),
+        info: (...args) => consoleInfoOutput.push(args.join(' ')),
+    },
+    consoleLogOutput: testState.consoleLogOutput,
+    consoleErrorOutput: testState.consoleErrorOutput,
+    mockProcessExitCode: testState.mockProcessExitCode,
+    setMockProcessExitCode: testState.setMockProcessExitCode
+}, ['lib/example.js']);
+```
+
+**Improved Pattern (Concise):**
+```javascript
+testState = createTestState();
+sandbox = createSandboxWithDeviceSelection({
+    USB: mockUsb,
+    Vial: mockVial,
+    ...testState
+}, ['lib/example.js']);
+```
+
+### Tasks:
+- [ ] Update `test/command_utils_test.js` to use spread testState syntax
+- [ ] Update `test/tapdance_add_test.js` to use spread testState syntax
+- [ ] Update `test/combo_add_test.js` to use spread testState syntax
+- [ ] Update `test/combo_delete_test.js` to use spread testState syntax
+- [ ] Update `test/macro_add_test.js` to use spread testState syntax
+- [ ] Update `test/key_override_add_test.js` to use spread testState syntax
+- [ ] Audit remaining test files for manual testState property specification and add tasks below this task for each file that needs to be updated
+- [ ] Remove any redundant local console output arrays (e.g., `consoleInfoOutput`, `consoleWarnOutput`) that are now included in testState
+
 ## Priority 2: USB Mock Standardization
 
 Some test files manually create USB mock objects instead of using the standardized `createMockUSB*()` helpers.

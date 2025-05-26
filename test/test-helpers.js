@@ -25,11 +25,11 @@ function createSandboxWithDeviceSelection(customObjects = {}, scriptPaths = []) 
 
     const sandbox = vm.createContext({
         // Default objects that most tests need
-        console: {
+        console: customObjects.console || {
             log: (...args) => (customObjects.consoleLogOutput || []).push(args.join(' ')),
             error: (...args) => (customObjects.consoleErrorOutput || []).push(args.join(' ')),
-            warn: (...args) => (customObjects.consoleErrorOutput || []).push(args.join(' ')),
-            info: (...args) => (customObjects.consoleErrorOutput || []).push(args.join(' ')),
+            warn: (...args) => (customObjects.consoleWarnOutput || customObjects.consoleErrorOutput || []).push(args.join(' ')),
+            info: (...args) => (customObjects.consoleInfoOutput || customObjects.consoleErrorOutput || []).push(args.join(' ')),
         },
         global: {},
         require: require,
@@ -48,7 +48,7 @@ function createSandboxWithDeviceSelection(customObjects = {}, scriptPaths = []) 
         // Merge in custom objects (excluding the special ones we handle above)
         ...Object.fromEntries(
             Object.entries(customObjects).filter(([key]) =>
-                !['consoleLogOutput', 'consoleErrorOutput', 'mockProcessExitCode', 'setMockProcessExitCode'].includes(key)
+                !['consoleLogOutput', 'consoleErrorOutput', 'consoleWarnOutput', 'consoleInfoOutput', 'mockProcessExitCode', 'setMockProcessExitCode', 'console'].includes(key)
             )
         )
     });
@@ -117,11 +117,11 @@ function createBasicSandbox(customObjects = {}, scriptPaths = []) {
 
     const sandbox = vm.createContext({
         // Default objects that most tests need
-        console: {
+        console: customObjects.console || {
             log: (...args) => (customObjects.consoleLogOutput || []).push(args.join(' ')),
             error: (...args) => (customObjects.consoleErrorOutput || []).push(args.join(' ')),
-            warn: (...args) => (customObjects.consoleErrorOutput || []).push(args.join(' ')),
-            info: (...args) => (customObjects.consoleErrorOutput || []).push(args.join(' ')),
+            warn: (...args) => (customObjects.consoleWarnOutput || customObjects.consoleErrorOutput || []).push(args.join(' ')),
+            info: (...args) => (customObjects.consoleInfoOutput || customObjects.consoleErrorOutput || []).push(args.join(' ')),
         },
         global: {},
         require: require,
@@ -139,7 +139,7 @@ function createBasicSandbox(customObjects = {}, scriptPaths = []) {
         // Merge in custom objects (excluding the special ones we handle above)
         ...Object.fromEntries(
             Object.entries(customObjects).filter(([key]) =>
-                !['consoleLogOutput', 'consoleErrorOutput', 'mockProcessExitCode', 'setMockProcessExitCode'].includes(key)
+                !['consoleLogOutput', 'consoleErrorOutput', 'consoleWarnOutput', 'consoleInfoOutput', 'mockProcessExitCode', 'setMockProcessExitCode', 'console'].includes(key)
             )
         )
     });
@@ -279,7 +279,16 @@ function createTestState() {
     const state = {
         consoleLogOutput: [],
         consoleErrorOutput: [],
+        consoleWarnOutput: [],
+        consoleInfoOutput: [],
         mockProcessExitCode: undefined
+    };
+
+    state.console = {
+        log: (...args) => state.consoleLogOutput.push(args.join(' ')),
+        error: (...args) => state.consoleErrorOutput.push(args.join(' ')),
+        warn: (...args) => state.consoleWarnOutput.push(args.join(' ')),
+        info: (...args) => state.consoleInfoOutput.push(args.join(' ')),
     };
 
     state.setMockProcessExitCode = function(val) {
