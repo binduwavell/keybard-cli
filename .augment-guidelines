@@ -11,7 +11,7 @@
 - User prefers QMK settings to be displayed and accessed by setting name rather than numeric index for better usability.
 
 # Preferences
-- User prefers bulk/automated approaches for performing repetitive edits across multiple test files rather than doing them one by one.
+- User prefers to work through TODO tasks systematically, creating scripts for bulk changes when possible, completing one task at a time when scripting isn't feasible, running npm test after each task completion, and marking tasks complete in TODO.md before proceeding.
 - User prefers to complete TODO tasks one at a time and mark each as complete in TODO.md before proceeding to the next incomplete task in the event that a bulk edit is not possible.
 
 # Testing

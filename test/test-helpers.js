@@ -4,6 +4,12 @@ const path = require('path');
 
 /**
  * Load a script file into a VM context
+ * @param {string} scriptPath - Relative path to the script file from project root
+ * @param {Object} context - VM context to load the script into
+ * @throws {Error} If the script file cannot be read or executed
+ * @example
+ * const context = vm.createContext({});
+ * loadScriptInContext('lib/my_command.js', context);
  */
 function loadScriptInContext(scriptPath, context) {
     const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
@@ -14,8 +20,25 @@ function loadScriptInContext(scriptPath, context) {
 /**
  * Create a basic sandbox context with device selection support
  * @param {Object} customObjects - Custom objects to add to the sandbox
- * @param {Array} scriptPaths - Array of script paths to load into the sandbox
- * @returns {Object} VM context sandbox
+ * @param {Object} customObjects.USB - Mock USB object for device communication
+ * @param {Object} customObjects.Vial - Mock Vial object for keyboard operations
+ * @param {Object} customObjects.KEY - Mock KEY object for key parsing/stringifying
+ * @param {Object} customObjects.fs - Mock file system object
+ * @param {Array} customObjects.consoleLogOutput - Array to capture console.log output
+ * @param {Array} customObjects.consoleErrorOutput - Array to capture console.error output
+ * @param {Array} customObjects.consoleWarnOutput - Array to capture console.warn output
+ * @param {Array} customObjects.consoleInfoOutput - Array to capture console.info output
+ * @param {number|undefined} customObjects.mockProcessExitCode - Current process exit code
+ * @param {Function} customObjects.setMockProcessExitCode - Function to set process exit code
+ * @param {Object} customObjects.console - Custom console object (overrides default)
+ * @param {Array<string>} scriptPaths - Array of script paths to load into the sandbox
+ * @returns {Object} VM context sandbox with device selection capabilities
+ * @example
+ * const sandbox = createSandboxWithDeviceSelection({
+ *   USB: createMockUSBSingleDevice(),
+ *   Vial: createMockVial(),
+ *   ...createTestState()
+ * }, ['lib/my_command.js']);
  */
 function createSandboxWithDeviceSelection(customObjects = {}, scriptPaths = []) {
     // Create a shared state object for process exit code
@@ -66,6 +89,14 @@ function createSandboxWithDeviceSelection(customObjects = {}, scriptPaths = []) 
 
 /**
  * Create a mock USB object that returns a single device (for auto-selection)
+ * @returns {Object} Mock USB object with single device
+ * @property {Function} list - Returns array with one mock device
+ * @property {Function} open - Async function that returns true (successful connection)
+ * @property {Function} close - No-op function for closing connection
+ * @property {boolean} device - Indicates device is connected
+ * @example
+ * const mockUsb = createMockUSBSingleDevice();
+ * const devices = mockUsb.list(); // [{ manufacturer: 'TestManu', product: 'TestProduct' }]
  */
 function createMockUSBSingleDevice() {
     return {
@@ -78,6 +109,14 @@ function createMockUSBSingleDevice() {
 
 /**
  * Create a mock USB object that returns multiple devices (requires device selection)
+ * @returns {Object} Mock USB object with multiple devices
+ * @property {Function} list - Returns array with two mock devices
+ * @property {Function} open - Async function that returns true (successful connection)
+ * @property {Function} close - No-op function for closing connection
+ * @property {boolean} device - Indicates device is connected
+ * @example
+ * const mockUsb = createMockUSBMultipleDevices();
+ * const devices = mockUsb.list(); // Array with 2 devices
  */
 function createMockUSBMultipleDevices() {
     return {
@@ -93,6 +132,14 @@ function createMockUSBMultipleDevices() {
 
 /**
  * Create a mock USB object that returns no devices
+ * @returns {Object} Mock USB object with no devices
+ * @property {Function} list - Returns empty array
+ * @property {Function} open - Async function that returns false (failed connection)
+ * @property {Function} close - No-op function for closing connection
+ * @property {null} device - Indicates no device is connected
+ * @example
+ * const mockUsb = createMockUSBNoDevices();
+ * const devices = mockUsb.list(); // []
  */
 function createMockUSBNoDevices() {
     return {
@@ -106,8 +153,25 @@ function createMockUSBNoDevices() {
 /**
  * Create a basic VM sandbox context without device selection
  * @param {Object} customObjects - Custom objects to add to the sandbox
- * @param {Array} scriptPaths - Array of script paths to load into the sandbox
- * @returns {Object} VM context sandbox
+ * @param {Object} customObjects.USB - Mock USB object for device communication
+ * @param {Object} customObjects.Vial - Mock Vial object for keyboard operations
+ * @param {Object} customObjects.KEY - Mock KEY object for key parsing/stringifying
+ * @param {Object} customObjects.fs - Mock file system object
+ * @param {Array} customObjects.consoleLogOutput - Array to capture console.log output
+ * @param {Array} customObjects.consoleErrorOutput - Array to capture console.error output
+ * @param {Array} customObjects.consoleWarnOutput - Array to capture console.warn output
+ * @param {Array} customObjects.consoleInfoOutput - Array to capture console.info output
+ * @param {number|undefined} customObjects.mockProcessExitCode - Current process exit code
+ * @param {Function} customObjects.setMockProcessExitCode - Function to set process exit code
+ * @param {Object} customObjects.console - Custom console object (overrides default)
+ * @param {Array<string>} scriptPaths - Array of script paths to load into the sandbox
+ * @returns {Object} VM context sandbox without device selection capabilities
+ * @example
+ * const sandbox = createBasicSandbox({
+ *   USB: createMockUSBSingleDevice(),
+ *   Vial: createMockVial(),
+ *   ...createTestState()
+ * }, ['lib/my_utility.js']);
  */
 function createBasicSandbox(customObjects = {}, scriptPaths = []) {
     // Create a shared state object for process exit code
@@ -155,8 +219,32 @@ function createBasicSandbox(customObjects = {}, scriptPaths = []) {
 /**
  * Create a mock Vial object with common default methods
  * @param {Object} kbinfoData - Initial keyboard info data
+ * @param {Object} kbinfoData.initData - Data to apply during init() call
+ * @param {number} kbinfoData.rows - Number of keyboard rows (default: 2)
+ * @param {number} kbinfoData.cols - Number of keyboard columns (default: 2)
+ * @param {number} kbinfoData.layers - Number of keyboard layers (default: 2)
+ * @param {Array} kbinfoData.keymap - Keymap data array
+ * @param {Array} kbinfoData.macros - Macros data array
+ * @param {number} kbinfoData.macro_count - Number of macros (default: 0)
+ * @param {Array} kbinfoData.combos - Combos data array
+ * @param {number} kbinfoData.combo_count - Number of combos (default: 0)
+ * @param {Array} kbinfoData.key_overrides - Key overrides data array
+ * @param {number} kbinfoData.key_override_count - Number of key overrides (default: 0)
+ * @param {Object} kbinfoData.qmk_settings - QMK settings object
+ * @param {Object} kbinfoData.settings - General settings object
  * @param {Object} methodOverrides - Override specific methods
- * @returns {Object} Mock Vial object
+ * @param {Function} methodOverrides.init - Custom init method
+ * @param {Function} methodOverrides.load - Custom load method
+ * @param {Object} methodOverrides.combo - Custom combo object with methods
+ * @param {Object} methodOverrides.kb - Custom kb object with methods
+ * @returns {Object} Mock Vial object with init and load methods
+ * @example
+ * const mockVial = createMockVial({
+ *   macros: [{ actions: ['KC_A', 'KC_B'] }],
+ *   macro_count: 1
+ * }, {
+ *   combo: { push: async () => {} }
+ * });
  */
 function createMockVial(kbinfoData = {}, methodOverrides = {}) {
     const defaultMethods = {
@@ -194,7 +282,21 @@ function createMockVial(kbinfoData = {}, methodOverrides = {}) {
 /**
  * Create a mock KEY object with common parse/stringify implementations
  * @param {Object} options - Configuration options
- * @returns {Object} Mock KEY object
+ * @param {Array} options.spyParseCalls - Array to track parse() calls for testing
+ * @param {Array} options.spyStringifyCalls - Array to track stringify() calls for testing
+ * @param {Object} options.keyDb - Custom key database mapping key codes to names
+ * @param {Function} options.parseImplementation - Custom parse function implementation
+ * @param {Function} options.stringifyImplementation - Custom stringify function implementation
+ * @returns {Object} Mock KEY object with parse and stringify methods
+ * @property {Function} parse - Converts key definition string to key code
+ * @property {Function} stringify - Converts key code to key definition string
+ * @example
+ * const spyParseCalls = [];
+ * const mockKey = createMockKEY({
+ *   spyParseCalls,
+ *   keyDb: { 0x0041: "KC_A", 0x0042: "KC_B" }
+ * });
+ * const keyCode = mockKey.parse("KC_A"); // Returns 0x0041, tracks call
  */
 function createMockKEY(options = {}) {
     const {
@@ -250,7 +352,18 @@ function createMockKEY(options = {}) {
 /**
  * Create a mock file system object
  * @param {Object} options - Configuration options
- * @returns {Object} Mock fs object
+ * @param {Array} options.spyWriteCalls - Array to track writeFileSync() calls for testing
+ * @param {string} options.throwError - Error message to throw on writeFileSync() calls
+ * @returns {Object} Mock fs object with file system operations
+ * @property {string|null} lastWritePath - Path of the last file written
+ * @property {string|null} lastWriteData - Data of the last file written
+ * @property {Function} writeFileSync - Mock writeFileSync function
+ * @example
+ * const spyWriteCalls = [];
+ * const mockFs = createMockFS({ spyWriteCalls });
+ * mockFs.writeFileSync('test.json', '{"key": "value"}');
+ * console.log(mockFs.lastWritePath); // 'test.json'
+ * console.log(spyWriteCalls); // [{ filepath: 'test.json', data: '{"key": "value"}' }]
  */
 function createMockFS(options = {}) {
     const { spyWriteCalls, throwError } = options;
@@ -274,8 +387,21 @@ function createMockFS(options = {}) {
 }
 
 /**
- * Create test state tracking objects
+ * Create test state tracking objects for console output and process exit codes
  * @returns {Object} State tracking objects
+ * @property {Array} consoleLogOutput - Array to capture console.log messages
+ * @property {Array} consoleErrorOutput - Array to capture console.error messages
+ * @property {Array} consoleWarnOutput - Array to capture console.warn messages
+ * @property {Array} consoleInfoOutput - Array to capture console.info messages
+ * @property {number|undefined} mockProcessExitCode - Current process exit code
+ * @property {Object} console - Mock console object with log, error, warn, info methods
+ * @property {Function} setMockProcessExitCode - Function to set the process exit code
+ * @example
+ * const testState = createTestState();
+ * testState.console.log('Hello world');
+ * testState.setMockProcessExitCode(1);
+ * console.log(testState.consoleLogOutput); // ['Hello world']
+ * console.log(testState.mockProcessExitCode); // 1
  */
 function createTestState() {
     const state = {
@@ -340,8 +466,19 @@ function assertExitCode(actualExitCode, expectedExitCode, description = 'Exit co
 
 /**
  * Creates a mock path object with common path operations
- * @param {Object} options - Configuration options
- * @returns {Object} Mock path object
+ * @param {Object} options - Configuration options (currently unused, reserved for future extensions)
+ * @returns {Object} Mock path object with path manipulation methods
+ * @property {Function} join - Joins path segments with '/' separator
+ * @property {Function} resolve - Resolves path segments to absolute path (prefixed with '/')
+ * @property {Function} dirname - Returns directory name of a file path
+ * @property {Function} basename - Returns base name (filename) of a file path
+ * @property {Function} extname - Returns file extension including the dot
+ * @example
+ * const mockPath = createMockPath();
+ * mockPath.join('dir', 'file.txt'); // 'dir/file.txt'
+ * mockPath.dirname('/path/to/file.txt'); // '/path/to'
+ * mockPath.basename('/path/to/file.txt'); // 'file.txt'
+ * mockPath.extname('/path/to/file.txt'); // '.txt'
  */
 function createMockPath(options = {}) {
     return {
@@ -360,7 +497,19 @@ function createMockPath(options = {}) {
 /**
  * Creates a mock process object with exit code tracking
  * @param {Object} testState - Test state object to track exit codes
- * @returns {Object} Mock process object
+ * @param {Function} testState.setMockProcessExitCode - Function to set process exit code
+ * @param {number|undefined} testState.mockProcessExitCode - Current process exit code
+ * @returns {Object} Mock process object with Node.js process-like interface
+ * @property {number|undefined} exitCode - Process exit code (getter/setter)
+ * @property {Array<string>} argv - Mock command line arguments
+ * @property {Object} env - Mock environment variables object
+ * @property {Function} cwd - Mock current working directory function
+ * @example
+ * const testState = createTestState();
+ * const mockProcess = createMockProcess(testState);
+ * mockProcess.exitCode = 1;
+ * console.log(testState.mockProcessExitCode); // 1
+ * console.log(mockProcess.cwd()); // '/mock/cwd'
  */
 function createMockProcess(testState) {
     return {
@@ -374,8 +523,19 @@ function createMockProcess(testState) {
 
 /**
  * Creates a spy function that tracks calls and arguments
- * @param {Function} implementation - Optional implementation function
- * @returns {Function} Spy function with call tracking
+ * @param {Function} implementation - Optional implementation function to execute when spy is called
+ * @returns {Function} Spy function with call tracking capabilities
+ * @property {Array<Array>} calls - Array of argument arrays for each call
+ * @property {number} callCount - Total number of times the spy was called
+ * @property {Function} calledWith - Check if spy was called with specific arguments
+ * @property {Function} reset - Reset call tracking data
+ * @example
+ * const spy = createSpy((x, y) => x + y);
+ * const result = spy(1, 2); // Returns 3
+ * console.log(spy.callCount); // 1
+ * console.log(spy.calls); // [[1, 2]]
+ * console.log(spy.calledWith(1, 2)); // true
+ * spy.reset(); // Clears call history
  */
 function createSpy(implementation = () => {}) {
     const spy = function(...args) {
@@ -402,8 +562,18 @@ function createSpy(implementation = () => {}) {
 
 /**
  * Creates a mock readline interface for testing interactive prompts
- * @param {Array} responses - Array of responses to provide to questions
- * @returns {Object} Mock readline interface
+ * @param {Array<string>} responses - Array of responses to provide to questions in order
+ * @returns {Object} Mock readline interface with createInterface method
+ * @property {Function} createInterface - Creates a mock readline interface
+ * @example
+ * const mockReadline = createMockReadline(['yes', '1', 'quit']);
+ * const rl = mockReadline.createInterface();
+ * rl.question('Continue? ', (answer) => {
+ *   console.log(answer); // 'yes'
+ * });
+ * rl.question('Select option: ', (answer) => {
+ *   console.log(answer); // '1'
+ * });
  */
 function createMockReadline(responses = []) {
     let responseIndex = 0;
@@ -422,7 +592,11 @@ function createMockReadline(responses = []) {
 
 /**
  * Deprecation warning for direct VM context creation
- * @param {string} testFileName - Name of the test file
+ * @param {string} testFileName - Name of the test file using deprecated patterns
+ * @example
+ * // Call this in tests that still use direct VM context creation
+ * warnDeprecatedVMUsage('my_old_test.js');
+ * // Outputs warning messages to console encouraging migration to test helpers
  */
 function warnDeprecatedVMUsage(testFileName) {
     console.warn(`⚠️  DEPRECATION WARNING: ${testFileName} is using direct VM context creation.`);
@@ -430,6 +604,33 @@ function warnDeprecatedVMUsage(testFileName) {
     console.warn('   - createSandboxWithDeviceSelection() or createBasicSandbox()');
     console.warn('   - createTestState() for console output tracking');
     console.warn('   - createMockUSB*(), createMockVial(), createMockKEY(), etc.');
+}
+
+/**
+ * Deprecation warning for manual mock object creation
+ * @param {string} testFileName - Name of the test file using deprecated patterns
+ * @param {string} mockType - Type of mock being created manually (e.g., 'USB', 'Vial', 'FS')
+ * @example
+ * // Call this in tests that manually create mock objects
+ * warnDeprecatedMockUsage('my_old_test.js', 'USB');
+ */
+function warnDeprecatedMockUsage(testFileName, mockType) {
+    console.warn(`⚠️  DEPRECATION WARNING: ${testFileName} is manually creating ${mockType} mock objects.`);
+    console.warn(`   Please migrate to use createMock${mockType}*() helpers from test-helpers.js`);
+    console.warn('   Available helpers: createMockUSB*(), createMockVial(), createMockKEY(), createMockFS()');
+}
+
+/**
+ * Deprecation warning for manual state management
+ * @param {string} testFileName - Name of the test file using deprecated patterns
+ * @example
+ * // Call this in tests that manually manage console output arrays
+ * warnDeprecatedStateUsage('my_old_test.js');
+ */
+function warnDeprecatedStateUsage(testFileName) {
+    console.warn(`⚠️  DEPRECATION WARNING: ${testFileName} is manually managing test state.`);
+    console.warn('   Please migrate to use createTestState() from test-helpers.js');
+    console.warn('   This provides: consoleLogOutput, consoleErrorOutput, mockProcessExitCode, etc.');
 }
 
 module.exports = {
@@ -450,5 +651,7 @@ module.exports = {
     assertErrorMessage,
     assertLogMessage,
     assertExitCode,
-    warnDeprecatedVMUsage
+    warnDeprecatedVMUsage,
+    warnDeprecatedMockUsage,
+    warnDeprecatedStateUsage
 };

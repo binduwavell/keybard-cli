@@ -683,31 +683,32 @@ The project uses a comprehensive test helper system located in `test/test-helper
 
 #### Writing Tests with Helpers
 
-**Preferred Pattern (NEW):**
+**Preferred Pattern:**
 ```javascript
 const {
     createSandboxWithDeviceSelection,
     createMockUSBSingleDevice,
     createMockVial,
+    createMockKEY,
+    createMockFS,
     createTestState
 } = require('./test-helpers');
 
 describe('my_command.js tests', () => {
-    let sandbox, testState;
+    let sandbox, testState, mockUsb, mockVial;
 
     function setupTestEnvironment(mockKbinfoData = {}, vialOverrides = {}) {
         testState = createTestState();
+        mockUsb = createMockUSBSingleDevice();
+        mockVial = createMockVial(mockKbinfoData, vialOverrides);
 
-        const mockUsb = createMockUSBSingleDevice();
-        const mockVial = createMockVial(mockKbinfoData, vialOverrides);
-
+        // Use spread operator for cleaner syntax
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: mockVial,
-            consoleLogOutput: testState.consoleLogOutput,
-            consoleErrorOutput: testState.consoleErrorOutput,
-            mockProcessExitCode: testState.mockProcessExitCode,
-            setMockProcessExitCode: testState.setMockProcessExitCode
+            KEY: createMockKEY(),
+            fs: createMockFS(),
+            ...testState  // Spreads console, mockProcessExitCode, setMockProcessExitCode
         }, ['lib/my_command.js']);
     }
 
@@ -718,89 +719,154 @@ describe('my_command.js tests', () => {
     it('should execute successfully', async () => {
         await sandbox.global.runMyCommand({});
 
-        expect(testState.consoleLogOutput.some(line =>
-            line.includes('Success message'))).to.be.true;
-        expect(testState.mockProcessExitCode).to.equal(0);
+        assert.isTrue(testState.consoleLogOutput.some(line =>
+            line.includes('Success message')));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should handle file operations', async () => {
+        const mockFs = createMockFS();
+        setupTestEnvironment({}, {}, { fs: mockFs });
+
+        await sandbox.global.runMyCommand({ output: 'test.json' });
+
+        assert.strictEqual(mockFs.lastWritePath, 'test.json');
+        assert.isNotNull(mockFs.lastWriteData);
     });
 });
 ```
 
-**Deprecated Pattern (OLD - DO NOT USE):**
+**Alternative Pattern (for complex mocking):**
 ```javascript
-// ❌ DEPRECATED - Direct VM context creation
-const vm = require('vm');
+const {
+    createBasicSandbox,
+    createMockUSBMultipleDevices,
+    createMockVial,
+    createMockKEY,
+    createSpy,
+    createTestState
+} = require('./test-helpers');
 
-describe('my_command.js tests', () => {
-    let sandbox, consoleLogOutput, consoleErrorOutput, mockProcessExitCode;
+describe('complex_command.js tests', () => {
+    let sandbox, testState, spyKeyCalls;
 
     function setupTestEnvironment() {
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
+        spyKeyCalls = [];
 
-        sandbox = vm.createContext({
-            // Manual setup...
+        const mockUsb = createMockUSBMultipleDevices();
+        const mockVial = createMockVial({
+            macros: [{ actions: ['KC_A', 'KC_B'] }],
+            macro_count: 1
         });
+        const mockKey = createMockKEY({ spyParseCalls: spyKeyCalls });
+
+        sandbox = createBasicSandbox({
+            USB: mockUsb,
+            Vial: mockVial,
+            KEY: mockKey,
+            customFunction: createSpy(() => 'mocked result'),
+            ...testState
+        }, ['lib/complex_command.js']);
     }
+
+    beforeEach(() => {
+        setupTestEnvironment();
+    });
+
+    it('should track key parsing calls', async () => {
+        await sandbox.global.runComplexCommand('KC_A');
+
+        assert.deepStrictEqual(spyKeyCalls, ['KC_A']);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
 });
 ```
 
-#### Migration Guide
+#### Advanced Testing Patterns
 
-When updating existing tests:
+**Testing Error Conditions:**
+```javascript
+it('should handle USB connection failure', async () => {
+    setupTestEnvironment();
+    mockUsb.open = async () => false; // Simulate connection failure
 
-1. **Replace imports:**
-   ```javascript
-   // OLD
-   const vm = require('vm');
-   const fs = require('fs');
-   const path = require('path');
+    await sandbox.global.runMyCommand({});
 
-   // NEW
-   const {
-       createSandboxWithDeviceSelection,
-       createMockUSBSingleDevice,
-       createMockVial,
-       createTestState
-   } = require('./test-helpers');
-   ```
+    assert.isTrue(testState.consoleErrorOutput.some(line =>
+        line.includes('Could not open USB device')));
+    assert.strictEqual(testState.mockProcessExitCode, 1);
+});
+```
 
-2. **Replace setup functions:**
-   ```javascript
-   // OLD
-   function setupTestEnvironment() {
-       consoleLogOutput = [];
-       consoleErrorOutput = [];
-       mockProcessExitCode = undefined;
-       sandbox = vm.createContext({...});
-   }
+**Testing File System Operations:**
+```javascript
+it('should handle file write errors', async () => {
+    const mockFs = createMockFS({ throwError: 'Permission denied' });
+    testState = createTestState();
 
-   // NEW
-   function setupTestEnvironment() {
-       testState = createTestState();
-       mockUsb = createMockUSBSingleDevice();
-       mockVial = createMockVial(defaultKbinfo, vialOverrides);
-       sandbox = createSandboxWithDeviceSelection({
-           USB: mockUsb,
-           Vial: mockVial,
-           consoleLogOutput: testState.consoleLogOutput,
-           consoleErrorOutput: testState.consoleErrorOutput,
-           mockProcessExitCode: testState.mockProcessExitCode,
-           setMockProcessExitCode: testState.setMockProcessExitCode
-       }, ['lib/command.js']);
-   }
-   ```
+    sandbox = createSandboxWithDeviceSelection({
+        USB: createMockUSBSingleDevice(),
+        Vial: createMockVial(),
+        fs: mockFs,
+        ...testState
+    }, ['lib/my_command.js']);
 
-3. **Update test assertions:**
-   ```javascript
-   // OLD
-   assert.isTrue(consoleErrorOutput.some(line => line.includes("Error message")));
-   assert.strictEqual(mockProcessExitCode, 1);
+    await sandbox.global.runMyCommand({ output: 'readonly.json' });
 
-   // NEW
-   assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error message")));
-   assert.strictEqual(testState.mockProcessExitCode, 1);
-   ```
+    assert.isTrue(testState.consoleErrorOutput.some(line =>
+        line.includes('Permission denied')));
+});
+```
+
+**Testing Interactive Prompts:**
+```javascript
+const { createMockReadline } = require('./test-helpers');
+
+it('should handle user input', async () => {
+    const mockReadline = createMockReadline(['1', 'yes']); // User responses
+
+    sandbox = createSandboxWithDeviceSelection({
+        USB: createMockUSBMultipleDevices(),
+        Vial: createMockVial(),
+        readline: mockReadline,
+        ...testState
+    }, ['lib/interactive_command.js']);
+
+    await sandbox.global.runInteractiveCommand({});
+
+    assert.isTrue(testState.consoleLogOutput.some(line =>
+        line.includes('Selected device 1')));
+});
+```
+
+**Using Spies for Call Tracking:**
+```javascript
+it('should call Vial methods in correct order', async () => {
+    const initSpy = createSpy();
+    const loadSpy = createSpy();
+    const pushSpy = createSpy();
+
+    const mockVial = createMockVial({}, {
+        init: initSpy,
+        load: loadSpy,
+        combo: { push: pushSpy }
+    });
+
+    sandbox = createSandboxWithDeviceSelection({
+        USB: createMockUSBSingleDevice(),
+        Vial: mockVial,
+        ...testState
+    }, ['lib/combo_add.js']);
+
+    await sandbox.global.runAddCombo('KC_A+KC_B KC_C', {});
+
+    assert.strictEqual(initSpy.callCount, 1);
+    assert.strictEqual(loadSpy.callCount, 1);
+    assert.strictEqual(pushSpy.callCount, 1);
+    assert.isTrue(initSpy.calls[0].length > 0); // Called with kbinfo reference
+});
+```
 
 #### Benefits of Test Helpers
 
@@ -809,6 +875,7 @@ When updating existing tests:
 - **Readability** - Tests focus on business logic rather than setup boilerplate
 - **Reusability** - Common mock objects and patterns are easily shared
 - **Type Safety** - Better structure and validation of test state
+- **Debugging** - Built-in spy tracking and error simulation capabilities
 
 ## Contributing
 

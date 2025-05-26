@@ -7,7 +7,8 @@ const {
     createMockKEY,
     createMockVial,
     createTestState,
-    loadScriptInContext
+    loadScriptInContext,
+    warnDeprecatedVMUsage
 } = require('./test-helpers');
 
 const MAX_COMBO_SLOTS_IN_TEST = 16;
@@ -300,6 +301,10 @@ describe('combo_add.js command tests', () => {
 
     it('should error if required objects not found in sandbox', async () => {
         const localTestState = createTestState();
+
+        // ⚠️ DEPRECATED: This test intentionally uses direct VM context creation
+        // to test error handling when required objects are missing
+        warnDeprecatedVMUsage('combo_add_test.js - missing objects test');
 
         sandbox = vm.createContext({
             // Missing USB, Vial, etc.
