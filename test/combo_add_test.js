@@ -1,18 +1,17 @@
 // test/test_add_combo.js
 const { assert } = require('chai');
 const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
+const {
+    createBasicSandbox,
+    createMockUSBSingleDevice,
+    createMockKEY,
+    createTestState,
+    loadScriptInContext
+} = require('./test-helpers');
 
 const MAX_COMBO_SLOTS_IN_TEST = 16;
 const DEFAULT_COMBO_TERM = 50;
 const KC_NO_VALUE = 0x0000;
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
 
 describe('combo_add.js command tests', () => {
     let sandbox;
@@ -21,23 +20,12 @@ describe('combo_add.js command tests', () => {
     let mockVialCombo;
     let mockVialKb;
     let mockKey;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spies
     let spyKeyParseCalls;
     let spyVialComboPushCalled;
     let mockKbinfoCombos;
-
-    // Mock implementation for KEY.parse
-    function mockKeyParseImplementation(keyDefStr) {
-        if (spyKeyParseCalls) spyKeyParseCalls.push(keyDefStr);
-        if (keyDefStr === "KC_INVALID") return undefined;
-        if (keyDefStr === "KC_NO") return KC_NO_VALUE; // Return the numeric value for KC_NO
-        // Return the key string as-is for simplicity in tests
-        return keyDefStr;
-    }
 
     function setupTestEnvironment(
         mockKbinfoInitial = {},
@@ -45,12 +33,15 @@ describe('combo_add.js command tests', () => {
         vialComboMethodOverrides = {},
         vialKbMethodOverrides = {}
     ) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        mockUsb = createMockUSBSingleDevice();
+        if (!testState) {
+            testState = createTestState();
+        } else {
+            // Reset the state for each test
+            testState.consoleLogOutput.length = 0;
+            testState.consoleErrorOutput.length = 0;
+            testState.mockProcessExitCode = undefined;
+        }
 
         // Convert object format to array format for combos
         const defaultCombos = mockKbinfoInitial.combos || [];
@@ -100,41 +91,33 @@ describe('combo_add.js command tests', () => {
         };
 
         spyKeyParseCalls = [];
-        mockKey = { parse: mockKeyParseImplementation };
+        mockKey = createMockKEY({
+            spyParseCalls: spyKeyParseCalls,
+            keyDb: { [KC_NO_VALUE]: "KC_NO" }
+        });
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
-
-        sandbox = vm.createContext({
+        sandbox = createBasicSandbox({
             USB: mockUsb,
             Vial: { ...mockVial, combo: mockVialCombo, kb: mockVialKb },
             KEY: mockKey,
             fs: {},
             runInitializers: () => {},
             MAX_COMBO_SLOTS_IN_LIB: MAX_COMBO_SLOTS_IN_TEST,
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            require: require,
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/combo_add.js', sandbox);
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
+        }, ['lib/combo_add.js']);
     }
 
     beforeEach(() => {
-        setupTestEnvironment();
+        // Don't call setupTestEnvironment here - let each test call it as needed
     });
 
     // --- Happy Path Tests ---
 
     it('should add a simple combo successfully', async () => {
+        setupTestEnvironment();
         const definitionString = "KC_A+KC_S KC_D";
         await sandbox.global.runAddCombo(definitionString, {});
 
@@ -145,11 +128,12 @@ describe('combo_add.js command tests', () => {
         assert.strictEqual(mockKbinfoCombos.length, 1);
         assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_A", "KC_S", "KC_NO", "KC_NO", "KC_D"]);
 
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo successfully added at ID 0")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Combo successfully added at ID 0")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should add a combo with custom term successfully', async () => {
+        setupTestEnvironment();
         const definitionString = "KC_B+KC_N KC_M";
         const term = 100;
         await sandbox.global.runAddCombo(definitionString, { term });
@@ -162,7 +146,7 @@ describe('combo_add.js command tests', () => {
         assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_B", "KC_N", "KC_NO", "KC_NO", "KC_M"]);
 
         // Note: term is not stored in the array format, it's a CLI-only concept
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should find the next empty slot for a new combo', async () => {
@@ -180,8 +164,8 @@ describe('combo_add.js command tests', () => {
         assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_X", "KC_NO", "KC_NO", "KC_NO", "KC_Y"]); // Original combo
         assert.deepStrictEqual(mockKbinfoCombos[1], ["KC_C", "KC_D", "KC_NO", "KC_NO", "KC_E"]); // New combo
 
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo successfully added at ID 1")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Combo successfully added at ID 1")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should use empty combo slot', async () => {
@@ -194,7 +178,7 @@ describe('combo_add.js command tests', () => {
 
         assert.strictEqual(spyVialComboPushCalled, true);
         assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_C", "KC_D", "KC_NO", "KC_NO", "KC_E"]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should use combo slot with KC_NO action key', async () => {
@@ -207,7 +191,7 @@ describe('combo_add.js command tests', () => {
 
         assert.strictEqual(spyVialComboPushCalled, true);
         assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_C", "KC_D", "KC_NO", "KC_NO", "KC_E"]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     // --- Sad Path Tests ---
@@ -221,68 +205,76 @@ describe('combo_add.js command tests', () => {
 
         await sandbox.global.runAddCombo("KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: No empty combo slots available. Max ${MAX_COMBO_SLOTS_IN_TEST} reached.`)));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: No empty combo slots available. Max ${MAX_COMBO_SLOTS_IN_TEST} reached.`)));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid combo definition (missing action key)', async () => {
+        setupTestEnvironment();
         await sandbox.global.runAddCombo("KC_A+KC_S", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid combo definition string.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid combo definition string.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid combo definition (too many parts)', async () => {
+        setupTestEnvironment();
         await sandbox.global.runAddCombo("KC_A+KC_S KC_D KC_F", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid combo definition string.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid combo definition string.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with no trigger keys specified', async () => {
+        setupTestEnvironment();
         await sandbox.global.runAddCombo(" KC_D", {});
 
         // The error might be caught as "Invalid combo definition string" instead
-        assert.isTrue(consoleErrorOutput.some(line =>
+        assert.isTrue(testState.consoleErrorOutput.some(line =>
             line.includes('Error parsing combo definition: No trigger keys specified in combo definition.') ||
             line.includes('Error parsing combo definition: Invalid combo definition string.')
         ));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid trigger key', async () => {
+        setupTestEnvironment();
         await sandbox.global.runAddCombo("KC_INVALID+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid or KC_NO trigger key: "KC_INVALID"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid or KC_NO trigger key: "KC_INVALID"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid action key', async () => {
+        setupTestEnvironment();
         await sandbox.global.runAddCombo("KC_A+KC_S KC_INVALID", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid action key: "KC_INVALID"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid action key: "KC_INVALID"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with KC_NO as trigger key', async () => {
+        setupTestEnvironment();
         await sandbox.global.runAddCombo("KC_NO+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid or KC_NO trigger key: "KC_NO"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Invalid or KC_NO trigger key: "KC_NO"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid term value (non-numeric)', async () => {
+        setupTestEnvironment();
         await sandbox.global.runAddCombo("KC_A+KC_S KC_D", { term: 'abc' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid term value "abc". Must be a non-negative integer.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid term value "abc". Must be a non-negative integer.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid term value (negative)', async () => {
+        setupTestEnvironment();
         await sandbox.global.runAddCombo("KC_A+KC_S KC_D", { term: -50 });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid term value "-50". Must be a non-negative integer.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid term value "-50". Must be a non-negative integer.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
@@ -291,8 +283,8 @@ describe('combo_add.js command tests', () => {
 
         await sandbox.global.runAddCombo("KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
@@ -301,24 +293,22 @@ describe('combo_add.js command tests', () => {
 
         await sandbox.global.runAddCombo("KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if required objects not found in sandbox', async () => {
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        const localTestState = createTestState();
 
         sandbox = vm.createContext({
             // Missing USB, Vial, etc.
             console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
+                log: (...args) => localTestState.consoleLogOutput.push(args.join(' ')),
+                error: (...args) => localTestState.consoleErrorOutput.push(args.join(' ')),
             },
             process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
+                get exitCode() { return localTestState.mockProcessExitCode; },
+                set exitCode(val) { localTestState.mockProcessExitCode = val; }
             },
             global: {}
         });
@@ -330,8 +320,8 @@ describe('combo_add.js command tests', () => {
                 await sandbox.global.runAddCombo("KC_A+KC_S KC_D", {});
                 // Should either error with our expected message or throw a ReferenceError
                 assert.isTrue(
-                    consoleErrorOutput.some(line => line.includes("Error: Required objects not found in sandbox.")) ||
-                    mockProcessExitCode === 1
+                    localTestState.consoleErrorOutput.some(line => line.includes("Error: Required objects not found in sandbox.")) ||
+                    localTestState.mockProcessExitCode === 1
                 );
             } catch (error) {
                 // ReferenceError is also acceptable since USB is not defined
@@ -349,8 +339,8 @@ describe('combo_add.js command tests', () => {
 
         await sandbox.global.runAddCombo("KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.combo.push function is not available. Cannot add combo.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Vial.combo.push function is not available. Cannot add combo.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.combo.push', async () => {
@@ -358,14 +348,15 @@ describe('combo_add.js command tests', () => {
 
         await sandbox.global.runAddCombo("KC_A+KC_S KC_D", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle too many trigger keys', async () => {
+        setupTestEnvironment();
         await sandbox.global.runAddCombo("KC_A+KC_B+KC_C+KC_D+KC_E KC_F", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Too many trigger keys. Maximum is 4. Found: 5')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing combo definition: Too many trigger keys. Maximum is 4. Found: 5')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

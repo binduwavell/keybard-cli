@@ -1,24 +1,20 @@
-const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
+const { assert } = require('chai');
+const {
+    createSandboxWithDeviceSelection,
+    createMockUSBSingleDevice,
+    createMockKEY,
+    createMockVial,
+    createTestState
+} = require('./test-helpers');
 
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
-
-describe('macros_list.js command tests', () => {
+describe('macro_list.js command tests', () => {
     let sandbox;
     let mockUsb;
     let mockVial;
     let mockVialKb;
     let mockKey;
     let mockFs;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spy variables
     let spyWriteFileSyncPath;
@@ -32,32 +28,19 @@ describe('macros_list.js command tests', () => {
     const sampleMacroCount = sampleMacros.length;
 
     function setupTestEnvironment(mockKbinfoData = {}, vialMethodOverrides = {}) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        testState = createTestState();
+
+        mockUsb = createMockUSBSingleDevice();
 
         const defaultKbinfo = {
-            macro_count: sampleMacroCount, // Default to having sample macros
-            macros: JSON.parse(JSON.stringify(sampleMacros)), // Use deep copy
+            macro_count: sampleMacroCount,
+            macros: JSON.parse(JSON.stringify(sampleMacros)),
             ...mockKbinfoData
         };
 
-        const defaultVialMethods = {
-            init: async (kbinfoRef) => { /* Basic setup */ },
-            load: async (kbinfoRef) => {
-                Object.assign(kbinfoRef, {
-                    macro_count: defaultKbinfo.macro_count,
-                    macros: JSON.parse(JSON.stringify(defaultKbinfo.macros)),
-                });
-            }
-        };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-
+        mockVial = createMockVial(defaultKbinfo, vialMethodOverrides);
         mockVialKb = {};
-        mockKey = { /* KEY object exists, its methods not directly called by list_macros.js */ };
+        mockKey = createMockKEY();
 
         spyWriteFileSyncPath = null;
         spyWriteFileSyncData = null;
@@ -68,33 +51,17 @@ describe('macros_list.js command tests', () => {
             }
         };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
-
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: { ...mockVial, kb: mockVialKb },
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            },
-            debug: () => () => {}
-        });
-
-        // Load device selection first, then command utils, then macro_list
-        loadScriptInContext('lib/common/device-selection.js', sandbox);
-        loadScriptInContext('lib/common/command-utils.js', sandbox);
-        loadScriptInContext('lib/macro_list.js', sandbox);
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
+        }, ['lib/common/command-utils.js', 'lib/macro_list.js']);
     }
 
     beforeEach(() => {
@@ -104,18 +71,18 @@ describe('macros_list.js command tests', () => {
     it('should list macros in text format to console', async () => {
         // setupTestEnvironment called by beforeEach uses default sampleMacros
         await sandbox.global.runListMacros({ format: 'text' });
-        const output = consoleLogOutput.join('\n');
+        const output = testState.consoleLogOutput.join('\n');
         assert.include(output, `Found ${sampleMacroCount} active macro(s) (total slots:`, "Header missing.");
         assert.include(output, "Macro 0: Tap(KC_A) Text(\"Hello\")", "Macro 0 format incorrect.");
         assert.include(output, "Macro 1: Delay(100ms) Tap(KC_LCTL) Tap(KC_C)", "Macro 1 format incorrect.");
-        assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
+        assert.strictEqual(testState.mockProcessExitCode, 0, `Exit code was ${testState.mockProcessExitCode}`);
     });
 
     it('should list macros in JSON format to console', async () => {
         await sandbox.global.runListMacros({ format: 'json' });
         const expectedJson = JSON.stringify(sampleMacros, null, 2);
-        assert.strictEqual(consoleLogOutput.join('\n'), expectedJson, "JSON output mismatch.");
-        assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
+        assert.strictEqual(testState.consoleLogOutput.join('\n'), expectedJson, "JSON output mismatch.");
+        assert.strictEqual(testState.mockProcessExitCode, 0, `Exit code was ${testState.mockProcessExitCode}`);
     });
 
     it('should list macros in text format to file', async () => {
@@ -124,8 +91,8 @@ describe('macros_list.js command tests', () => {
         assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
         assert.include(spyWriteFileSyncData, `Found ${sampleMacroCount} active macro(s) (total slots:`, "File data header missing.");
         assert.include(spyWriteFileSyncData, "Macro 0: Tap(KC_A) Text(\"Hello\")", "File data Macro 0 incorrect.");
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Macro list written to ${outputPath}`)), "Success message not logged.");
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Macro list written to ${outputPath}`)), "Success message not logged.");
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should list macros in JSON format to file', async () => {
@@ -134,22 +101,22 @@ describe('macros_list.js command tests', () => {
         assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
         const expectedJson = JSON.stringify(sampleMacros, null, 2);
         assert.strictEqual(spyWriteFileSyncData, expectedJson, "File JSON data mismatch.");
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Macro list written to ${outputPath}`)), "Success message not logged.");
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Macro list written to ${outputPath}`)), "Success message not logged.");
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should output "No macros defined" in text format if none exist', async () => {
         setupTestEnvironment({ macro_count: 0, macros: [] }); // Override setup for this case
         await sandbox.global.runListMacros({ format: 'text' });
-        assert.isTrue(consoleLogOutput.some(line => line.includes("No macros defined on this keyboard.")), "Message missing.");
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("No macros defined on this keyboard.")), "Message missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should output an empty JSON array if no macros exist', async () => {
         setupTestEnvironment({ macro_count: 0, macros: [] }); // Override setup
         await sandbox.global.runListMacros({ format: 'json' });
-        assert.strictEqual(consoleLogOutput.join('\n'), JSON.stringify([], null, 2), "Should output empty array.");
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.consoleLogOutput.join('\n'), JSON.stringify([], null, 2), "Should output empty array.");
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should filter out empty macros in text format but include all in JSON', async () => {
@@ -162,30 +129,30 @@ describe('macros_list.js command tests', () => {
 
         // Test text format - should only show active macros
         await sandbox.global.runListMacros({ format: 'text' });
-        const textOutput = consoleLogOutput.join('\n');
+        const textOutput = testState.consoleLogOutput.join('\n');
         assert.include(textOutput, 'Found 2 active macro(s) (total slots: 5):', "Should show 2 active macros out of 5 slots.");
         assert.include(textOutput, 'Macro 0:', "Should include active macro 0.");
         assert.include(textOutput, 'Macro 2:', "Should include active macro 2.");
         assert.notInclude(textOutput, 'Macro 1:', "Should not include empty macro 1.");
 
         // Reset console output
-        consoleLogOutput.length = 0;
+        testState.consoleLogOutput.length = 0;
 
         // Test JSON format - should include all macros
         await sandbox.global.runListMacros({ format: 'json' });
-        const jsonOutput = JSON.parse(consoleLogOutput.join('\n'));
+        const jsonOutput = JSON.parse(testState.consoleLogOutput.join('\n'));
         assert.strictEqual(jsonOutput.length, 3, "JSON should include all 3 macros.");
         assert.strictEqual(jsonOutput[1].mid, 1, "Should include empty macro in JSON.");
         assert.deepStrictEqual(jsonOutput[1].actions, [], "Empty macro should have empty actions array.");
 
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if no compatible device is found', async () => {
         mockUsb.list = () => []; // Override mock for this test
         await sandbox.global.runListMacros({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")), "Error message missing.");
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")), "Error message missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.load fails to populate macro data', async () => {
@@ -196,8 +163,8 @@ describe('macros_list.js command tests', () => {
         };
         setupTestEnvironment({}, customVialOverrides); // Pass override
         await sandbox.global.runListMacros({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Macro data not fully populated by Vial functions.")), "Error message missing.");
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Macro data not fully populated by Vial functions.")), "Error message missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should report error and fallback to console if file write fails', async () => {
@@ -207,9 +174,9 @@ describe('macros_list.js command tests', () => {
 
         await sandbox.global.runListMacros({ outputFile: outputPath });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing macro list to file "${outputPath}": ${expectedFileErrorMessage}`)), "Error message for file write missing.");
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Macro List (fallback due to file write error):")), "Fallback header missing.");
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Macro 0: Tap(KC_A) Text(\"Hello\")")), "Fallback content missing.");
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error writing macro list to file "${outputPath}": ${expectedFileErrorMessage}`)), "Error message for file write missing.");
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro List (fallback due to file write error):")), "Fallback header missing.");
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro 0: Tap(KC_A) Text(\"Hello\")")), "Fallback content missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

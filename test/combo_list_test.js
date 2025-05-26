@@ -1,13 +1,11 @@
-const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
+const { assert } = require('chai');
+const {
+    createSandboxWithDeviceSelection,
+    createMockUSBSingleDevice,
+    createMockKEY,
+    createMockVial,
+    createTestState
+} = require('./test-helpers');
 
 describe('combos_list.js command tests', () => {
     let sandbox;
@@ -16,9 +14,7 @@ describe('combos_list.js command tests', () => {
     let mockVialKb;
     let mockKey;
     let mockFs;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spy variables
     let spyWriteFileSyncPath;
@@ -46,12 +42,9 @@ describe('combos_list.js command tests', () => {
     const sampleComboCount = sampleCombos.length;
 
     function setupTestEnvironment(mockKbinfoData = {}, vialMethodOverrides = {}) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        testState = createTestState();
+
+        mockUsb = createMockUSBSingleDevice();
 
         const defaultKbinfo = {
             combo_count: sampleComboCount,
@@ -59,17 +52,7 @@ describe('combos_list.js command tests', () => {
             ...mockKbinfoData
         };
 
-        const defaultVialMethods = {
-            init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => {
-                Object.assign(kbinfoRef, {
-                    combo_count: defaultKbinfo.combo_count,
-                    combos: JSON.parse(JSON.stringify(defaultKbinfo.combos)),
-                });
-            }
-        };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-
+        mockVial = createMockVial(defaultKbinfo, vialMethodOverrides);
         mockVialKb = {};
 
         spyKeyStringifyCalls = [];
@@ -84,33 +67,17 @@ describe('combos_list.js command tests', () => {
             }
         };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
-
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: { ...mockVial, kb: mockVialKb },
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            },
-            debug: () => () => {}
-        });
-
-        // Load device selection first, then command utils, then combo_list
-        loadScriptInContext('lib/common/device-selection.js', sandbox);
-        loadScriptInContext('lib/common/command-utils.js', sandbox);
-        loadScriptInContext('lib/combo_list.js', sandbox);
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
+        }, ['lib/common/command-utils.js', 'lib/combo_list.js']);
     }
 
     beforeEach(() => {
@@ -119,12 +86,12 @@ describe('combos_list.js command tests', () => {
 
     it('should list combos in text format to console', async () => {
         await sandbox.global.runListCombos({ format: 'text' });
-        const output = consoleLogOutput.join('\\n');
+        const output = testState.consoleLogOutput.join('\\n');
         assert.include(output, `Found ${sampleComboCount} active combo(s) (total slots`, "Header missing.");
         assert.include(output, "Combo 0: KC_A + KC_B -> KC_C", "Combo 0 format incorrect.");
         assert.include(output, "Combo 1: KC_D -> KC_E", "Combo 1 format incorrect.");
         assert.include(output, "Combo 2: KC_A + KC_E -> KC_D", "Combo 2 format incorrect.");
-        assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
+        assert.strictEqual(testState.mockProcessExitCode, 0, `Exit code was ${testState.mockProcessExitCode}`);
     });
 
     it('should list combos in JSON format to console', async () => {
@@ -143,8 +110,8 @@ describe('combos_list.js command tests', () => {
             };
         });
         const expectedJson = JSON.stringify(expectedJsonObjects, null, 2);
-        assert.strictEqual(consoleLogOutput.join('\\n'), expectedJson, "JSON output mismatch.");
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.consoleLogOutput.join('\\n'), expectedJson, "JSON output mismatch.");
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should list combos in text format to file', async () => {
@@ -153,8 +120,8 @@ describe('combos_list.js command tests', () => {
         assert.strictEqual(spyWriteFileSyncPath, outputPath, "Filepath mismatch.");
         assert.include(spyWriteFileSyncData, `Found ${sampleComboCount} active combo(s) (total slots`);
         assert.include(spyWriteFileSyncData, "Combo 1: KC_D -> KC_E");
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo list written to ${outputPath}`)));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Combo list written to ${outputPath}`)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should list combos in JSON format to file', async () => {
@@ -176,36 +143,36 @@ describe('combos_list.js command tests', () => {
         });
         const expectedJson = JSON.stringify(expectedJsonObjects, null, 2);
         assert.strictEqual(spyWriteFileSyncData, expectedJson);
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo list written to ${outputPath}`)));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Combo list written to ${outputPath}`)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should output "No combos defined" in text format if none exist', async () => {
         setupTestEnvironment({ combo_count: 0, combos: [] });
         await sandbox.global.runListCombos({ format: 'text' });
-        assert.isTrue(consoleLogOutput.some(line => line.includes("No combos defined on this keyboard.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("No combos defined on this keyboard.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should output an empty JSON array if no combos exist', async () => {
         setupTestEnvironment({ combo_count: 0, combos: [] });
         await sandbox.global.runListCombos({ format: 'json' });
-        assert.strictEqual(consoleLogOutput.join('\\n'), JSON.stringify([], null, 2));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.consoleLogOutput.join('\\n'), JSON.stringify([], null, 2));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if no compatible device is found', async () => {
         mockUsb.list = () => []; // Override for this test
         await sandbox.global.runListCombos({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
         mockUsb.open = async () => false; // Override for this test
         await sandbox.global.runListCombos({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.load fails to populate combo data', async () => {
@@ -216,8 +183,8 @@ describe('combos_list.js command tests', () => {
             }
         });
         await sandbox.global.runListCombos({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Combo data (combo_count or combos array) not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Combo data (combo_count or combos array) not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should report error and fallback to console if file write fails', async () => {
@@ -227,9 +194,9 @@ describe('combos_list.js command tests', () => {
 
         await sandbox.global.runListCombos({ outputFile: outputPath });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing combo list to file "${outputPath}": ${expectedFileErrorMessage}`)));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo List (fallback due to file write error):")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0: KC_A + KC_B -> KC_C")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error writing combo list to file "${outputPath}": ${expectedFileErrorMessage}`)));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Combo List (fallback due to file write error):")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Combo 0: KC_A + KC_B -> KC_C")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

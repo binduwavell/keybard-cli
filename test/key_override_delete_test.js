@@ -1,16 +1,15 @@
 // test/test_delete_key_override.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
+const {
+    createSandboxWithDeviceSelection,
+    createMockUSBSingleDevice,
+    createMockUSBNoDevices,
+    createMockVial,
+    createMockKEY,
+    createTestState
+} = require('./test-helpers');
 
 const MAX_KEY_OVERRIDE_SLOTS_IN_TEST = 8;
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
 
 describe('key_override_delete.js command tests', () => {
     let sandbox;
@@ -19,25 +18,13 @@ describe('key_override_delete.js command tests', () => {
     let mockVialKeyOverride;
     let mockVialKb;
     let mockKey;
+    let testState;
 
     // Spies
     let spyVialKeyOverridePushKbinfo;
+    let spyVialKeyOverridePushKoid;
     let spyVialKbSaveKeyOverridesCalled;
     let spyKeyParseCalls;
-
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
-
-    function mockKeyParseImplementation(keyDefStr) {
-        if (spyKeyParseCalls) spyKeyParseCalls.push(keyDefStr);
-        if (keyDefStr === "KC_INVALID") return undefined;
-        let baseVal = 0;
-        for (let i = 0; i < keyDefStr.length; i++) { baseVal += keyDefStr.charCodeAt(i); }
-        if (keyDefStr.includes("LCTL")) baseVal += 0x1000;
-        if (keyDefStr.includes("LSFT")) baseVal += 0x2000;
-        return baseVal;
-    }
 
     function setupTestEnvironment(
         mockKbinfoInitial = {},
@@ -45,15 +32,8 @@ describe('key_override_delete.js command tests', () => {
         vialKeyOverrideMethodOverrides = {},
         vialKbMethodOverrides = {}
     ) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
-
-        // Initialize mockKey here as it's used in defaultKbinfo processing
-        mockKey = { parse: mockKeyParseImplementation };
+        testState = createTestState();
+        mockUsb = createMockUSBSingleDevice();
 
         const defaultKbinfo = {
             key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST,
@@ -61,23 +41,7 @@ describe('key_override_delete.js command tests', () => {
             ...mockKbinfoInitial
         };
 
-        const defaultVialMethods = {
-            init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => {
-                Object.assign(kbinfoRef, {
-                    key_override_count: defaultKbinfo.key_override_count,
-                    key_overrides: JSON.parse(JSON.stringify(defaultKbinfo.key_overrides)),
-                    macros: kbinfoRef.macros || [],
-                    macro_count: kbinfoRef.macro_count || 0,
-                });
-                 if (mockVial && mockVial.kbinfo !== kbinfoRef) {
-                     if (mockVial.kbinfo) Object.assign(mockVial.kbinfo, kbinfoRef);
-                     else mockVial.kbinfo = kbinfoRef;
-                }
-            }
-        };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
-        if (!mockVial.kbinfo) mockVial.kbinfo = { ...defaultKbinfo } ;
+        mockVial = createMockVial(defaultKbinfo, vialMethodOverrides);
 
         spyVialKeyOverridePushKbinfo = null;
         spyVialKeyOverridePushKoid = null;
@@ -101,29 +65,21 @@ describe('key_override_delete.js command tests', () => {
         };
 
         spyKeyParseCalls = [];
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        mockKey = createMockKEY({
+            spyParseCalls: spyKeyParseCalls
+        });
 
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
-            Vial: { ...mockVial, key_override: mockVialKeyOverride, kb: mockVialKb, kbinfo: mockVial.kbinfo },
+            Vial: { ...mockVial, key_override: mockVialKeyOverride, kb: mockVialKb },
             KEY: mockKey,
             fs: {},
             runInitializers: () => {},
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            require: require,
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/key_override_delete.js', sandbox);
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
+        }, ['lib/key_override_delete.js']);
     }
 
     beforeEach(() => {
@@ -154,8 +110,8 @@ describe('key_override_delete.js command tests', () => {
         assert.strictEqual(unchangedOverride.replacement, "KC_B");
 
         assert.isTrue(spyVialKbSaveKeyOverridesCalled, "saveKeyOverrides was not called");
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Key override ID ${idToDelete} successfully deleted`)));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Key override ID ${idToDelete} successfully deleted`)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if key override ID to delete is not found', async () => {
@@ -165,48 +121,48 @@ describe('key_override_delete.js command tests', () => {
         setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
         const idToDelete = 1;
         await sandbox.global.runDeleteKeyOverride(idToDelete.toString(), {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Key override with ID ${idToDelete} not found or not active. Cannot delete.`)));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: Key override with ID ${idToDelete} not found or not active. Cannot delete.`)));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if key override ID is out of bounds', async () => {
         setupTestEnvironment({ key_overrides: [], key_override_count: 0 });
         const idToDelete = 0;
         await sandbox.global.runDeleteKeyOverride(idToDelete.toString(), {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Key override ID ${idToDelete} is out of bounds. Maximum ID is -1.`)));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: Key override ID ${idToDelete} is out of bounds. Maximum ID is -1.`)));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for non-numeric key override ID', async () => {
         await sandbox.global.runDeleteKeyOverride("abc", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid key override ID "abc". Must be a non-negative integer.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid key override ID "abc". Must be a non-negative integer.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for negative key override ID', async () => {
         await sandbox.global.runDeleteKeyOverride("-1", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid key override ID "-1". Must be a non-negative integer.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid key override ID "-1". Must be a non-negative integer.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if key override ID is missing', async () => {
         await sandbox.global.runDeleteKeyOverride(null, {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Key override ID must be provided.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Key override ID must be provided.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
         mockUsb.list = () => [];
         await sandbox.global.runDeleteKeyOverride("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
         mockUsb.open = async () => false;
         await sandbox.global.runDeleteKeyOverride("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.load fails to populate key override data', async () => {
@@ -216,8 +172,8 @@ describe('key_override_delete.js command tests', () => {
             }
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Key override data not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Key override data not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.keyoverride.push', async () => {
@@ -225,8 +181,8 @@ describe('key_override_delete.js command tests', () => {
             push: async () => { throw new Error("Simulated Push Error"); }
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.kb.saveKeyOverrides', async () => {
@@ -234,8 +190,8 @@ describe('key_override_delete.js command tests', () => {
             saveKeyOverrides: async () => { throw new Error("Simulated Save Error"); }
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should use Vial.kb.save if saveKeyOverrides is missing and log debug', async () => {
@@ -244,10 +200,10 @@ describe('key_override_delete.js command tests', () => {
             save: async () => { spyVialKbSaveKeyOverridesCalled = true; }
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
         // Debug messages now use debug library instead of console.log
         assert.isTrue(spyVialKbSaveKeyOverridesCalled);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should warn if no save function (saveKeyOverrides or save) is found', async () => {
@@ -256,9 +212,9 @@ describe('key_override_delete.js command tests', () => {
             save: undefined
         });
         await sandbox.global.runDeleteKeyOverride("0", {});
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
         assert.isFalse(spyVialKbSaveKeyOverridesCalled);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

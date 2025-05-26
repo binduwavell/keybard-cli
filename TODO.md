@@ -40,3 +40,143 @@ This file lists planned command-line interface (CLI) commands for KeyBard CLI, b
 *   [x] `keybard-cli set qmk-setting <setting_name> <value>`: Change a QMK setting.
 *   [x] `keybard-cli keyboard upload <filepath.vil | filepath.svl>`: Upload and apply a `.vil` (Vial keymap) or `.svl` (Svalboard/KeyBard keymap) file to the keyboard.
 *   [x] `keybard-cli keyboard download <filepath.svl>`: Download the current keyboard configuration to an `.svl` file.
+
+# Test Infrastructure Improvements
+
+This section outlines opportunities to improve test consistency and maintainability by better utilizing the test helpers framework in `@test/test-helpers.js`. The test helpers provide standardized mocking, state tracking, and sandbox creation that can significantly reduce boilerplate code and improve test reliability.
+
+## Benefits of Migration
+
+**Consistency**: All tests use the same patterns and helper functions
+**Maintainability**: Changes to mock behavior can be made in one place
+**Reliability**: Well-tested helper functions reduce test flakiness
+**Readability**: Less boilerplate code in individual tests
+**Features**: Access to enhanced capabilities like spy tracking and error simulation
+
+## Migration Strategy
+
+1. **Start with Priority 1**: Low-effort migrations to `createTestState()`
+2. **Progress to Priority 2**: Medium-effort USB mock standardization
+3. **Continue with Priority 3-4**: More complex mock standardization
+4. **Finish with Priority 5**: Documentation and guidelines
+5. **Test thoroughly**: Ensure all tests pass after each migration batch
+## Priority 1: Console Output & Process Exit Code Standardization
+
+Many test files manually create console output arrays and process exit code tracking instead of using `createTestState()`. This creates inconsistency and makes tests harder to maintain.
+
+**Current Pattern (Suboptimal):**
+```javascript
+let consoleLogOutput = [];
+let consoleErrorOutput = [];
+let mockProcessExitCode = undefined;
+```
+
+**Improved Pattern:**
+```javascript
+const testState = createTestState();
+// Use: testState.consoleLogOutput, testState.consoleErrorOutput, testState.mockProcessExitCode
+```
+
+### Tasks:
+- [ ] Migrate `test/keyboard_download_test.js` to use `createTestState()`
+- [ ] Migrate `test/macro_add_test.js` to use `createTestState()`
+- [ ] Migrate `test/keymap_download_test.js` to use `createTestState()`
+- [ ] Migrate `test/keymap_get_test.js` to use `createTestState()`
+- [ ] Migrate `test/keymap_set_test.js` to use `createTestState()`
+- [ ] Migrate `test/keymap_upload_test.js` to use `createTestState()`
+- [ ] Migrate `test/macro_delete_test.js` to use `createTestState()`
+- [ ] Migrate `test/macro_edit_test.js` to use `createTestState()`
+- [ ] Migrate `test/macro_get_test.js` to use `createTestState()`
+- [ ] Migrate `test/qmk_setting_get_test.js` to use `createTestState()`
+- [ ] Migrate `test/qmk_setting_list_test.js` to use `createTestState()`
+- [ ] Migrate `test/qmk_setting_set_test.js` to use `createTestState()`
+- [ ] Migrate `test/keyboard_upload_test.js` to use `createTestState()`
+- [ ] Migrate `test/key_override_list_test.js` to use `createTestState()`
+- [ ] Migrate `test/key_override_add_test.js` to use `createTestState()`
+- [ ] Migrate `test/key_override_edit_test.js` to use `createTestState()`
+
+## Priority 2: USB Mock Standardization
+
+Some test files manually create USB mock objects instead of using the standardized `createMockUSB*()` helpers.
+
+**Current Pattern (Suboptimal):**
+```javascript
+mockUsb = {
+    list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
+    open: async () => true,
+    close: () => { mockUsb.device = null; }
+};
+```
+
+**Improved Pattern:**
+```javascript
+mockUsb = createMockUSBSingleDevice();
+// or: createMockUSBMultipleDevices([device1, device2]);
+// or: createMockUSBNoDevices();
+```
+
+### Tasks:
+- [ ] Migrate `test/tapdance_add_test.js` to use `createMockUSBSingleDevice()`
+- [ ] Migrate `test/keyboard_download_test.js` to use `createMockUSBSingleDevice()`
+- [ ] Migrate `test/keyboard_upload_test.js` to use `createMockUSBSingleDevice()`
+- [ ] Migrate `test/key_override_list_test.js` to use `createMockUSBSingleDevice()`
+
+## Priority 3: Vial Mock Standardization
+
+Many test files manually create Vial mock objects that could benefit from using `createMockVial()`.
+
+**Current Pattern (Suboptimal):**
+```javascript
+const defaultVialMethods = {
+    init: async (kbinfoRef) => {},
+    load: async (kbinfoRef) => { Object.assign(kbinfoRef, defaultKbinfo); }
+};
+mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+```
+
+**Improved Pattern:**
+```javascript
+mockVial = createMockVial(defaultKbinfo, vialMethodOverrides);
+```
+
+### Tasks:
+- [ ] Audit test files for manual Vial mock creation patterns
+- [ ] Migrate identified files to use `createMockVial()` where appropriate
+- [ ] Document any complex Vial mock requirements that need helper enhancements
+
+## Priority 4: File System Mock Standardization
+
+Test files that interact with the file system could benefit from using `createMockFS()`.
+
+**Current Pattern (Suboptimal):**
+```javascript
+mockFs = {
+    writeFileSync: (filepath, data) => {
+        spyWriteFileSyncPath = filepath;
+        spyWriteFileSyncData = data;
+    }
+};
+```
+
+**Improved Pattern:**
+```javascript
+const spyWriteCalls = [];
+mockFs = createMockFS({ spyWriteCalls });
+// Access via: mockFs.lastWritePath, mockFs.lastWriteData, spyWriteCalls
+```
+
+### Tasks:
+- [ ] Identify test files that manually create file system mocks
+- [ ] Migrate to use `createMockFS()` helper
+- [ ] Enhance `createMockFS()` if additional capabilities are needed
+
+## Priority 5: Documentation and Guidelines
+
+Ensure that the preferred testing patterns are well-documented and easily discoverable.
+
+### Tasks:
+- [ ] Update README.md with comprehensive test helper usage examples
+- [ ] Add JSDoc documentation to all test helper functions
+- [ ] Create a testing best practices guide
+- [ ] Add deprecation warnings for direct VM context creation in tests
+- [ ] Document the enhanced `createMockKEY()` capabilities (custom implementations, spy tracking)

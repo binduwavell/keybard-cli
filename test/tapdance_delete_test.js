@@ -1,17 +1,16 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
+const {
+    createSandboxWithDeviceSelection,
+    createMockUSBSingleDevice,
+    createMockUSBNoDevices,
+    createMockVial,
+    createMockKEY,
+    createTestState
+} = require('./test-helpers');
 
 const MAX_TAPDANCE_SLOTS_IN_TEST = 4;
 const DEFAULT_TAPPING_TERM_FOR_CLEAR_IN_LIB = 0;
 const KC_NO_VALUE_IN_LIB = 0x0000;
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
 
 describe('tapdance_delete.js command tests', () => {
     let sandbox;
@@ -20,9 +19,7 @@ describe('tapdance_delete.js command tests', () => {
     let mockVialTapdance;
     let mockVialKb;
     let mockKey;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spy variables
     let spyVialTapdancePushKbinfo;
@@ -32,10 +29,6 @@ describe('tapdance_delete.js command tests', () => {
     const mockKeyDb = {
         [KC_NO_VALUE_IN_LIB]: "KC_NO_STR"
     };
-
-    function mockKeyStringifyImplementation(keyCode) {
-        return mockKeyDb[keyCode] || `STR(${keyCode})`;
-    }
 
     const initialSampleTapdances = () => [
         { tdid: 0, tap: "KC_A_S", hold: "KC_NO_S", doubletap: "KC_B_S", taphold: "KC_NO_S", tapms: 200 },
@@ -49,12 +42,8 @@ describe('tapdance_delete.js command tests', () => {
         vialTapdanceOverrides = {},
         vialKbMethodOverrides = {}
     ) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        testState = createTestState();
+        mockUsb = createMockUSBSingleDevice();
 
         const currentInitialTapdances = mockKbinfoInitialOverrides.tapdances !== undefined ?
                                      JSON.parse(JSON.stringify(mockKbinfoInitialOverrides.tapdances)) :
@@ -69,16 +58,7 @@ describe('tapdance_delete.js command tests', () => {
             defaultKbinfo.tapdance_count = Math.max(mockKbinfoInitialOverrides.tapdances.length, MAX_TAPDANCE_SLOTS_IN_TEST);
         }
 
-        const defaultVialMethods = {
-            init: async (kbinfoRef) => {},
-            load: async (kbinfoRef) => {
-                Object.assign(kbinfoRef, {
-                    tapdance_count: defaultKbinfo.tapdance_count,
-                    tapdances: JSON.parse(JSON.stringify(defaultKbinfo.tapdances)),
-                });
-            }
-        };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+        mockVial = createMockVial(defaultKbinfo, vialMethodOverrides);
 
         spyVialTapdancePushKbinfo = null;
         spyVialTapdancePushTdid = null;
@@ -98,13 +78,11 @@ describe('tapdance_delete.js command tests', () => {
             ...vialKbMethodOverrides
         };
 
-        mockKey = { stringify: mockKeyStringifyImplementation };
+        mockKey = createMockKEY({
+            keyDb: mockKeyDb
+        });
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
-
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: { ...mockVial, tapdance: mockVialTapdance, kb: mockVialKb },
             KEY: mockKey,
@@ -112,26 +90,11 @@ describe('tapdance_delete.js command tests', () => {
             runInitializers: () => {},
             DEFAULT_TAPPING_TERM_FOR_CLEAR: DEFAULT_TAPPING_TERM_FOR_CLEAR_IN_LIB,
             KC_NO_VALUE: KC_NO_VALUE_IN_LIB,
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            },
-            // Mock device selector function for tests
-            getDeviceSelector: () => null
-        });
-
-        // Load common utilities first
-        loadScriptInContext('lib/common/device-selection.js', sandbox);
-        loadScriptInContext('lib/common/command-utils.js', sandbox);
-
-        // Then load the tapdance script
-        loadScriptInContext('lib/tapdance_delete.js', sandbox);
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
+        }, ['lib/common/command-utils.js', 'lib/tapdance_delete.js']);
     }
 
     beforeEach(() => {
@@ -160,40 +123,40 @@ describe('tapdance_delete.js command tests', () => {
 
         assert.isTrue(spyVialKbSaveTapDancesCalled, "Vial.kb.saveTapDances not called.");
         const expectedLog = `Tapdance ${tapdanceIdToDelete} deleted successfully (actions cleared, term set to ${DEFAULT_TAPPING_TERM_FOR_CLEAR_IN_LIB}ms).`;
-        assert.isTrue(consoleLogOutput.some(line => line.includes(expectedLog)));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(expectedLog)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if tapdance ID to delete is not found', async () => {
         await sandbox.global.runDeleteTapdance("99", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Tapdance with ID 99 not found. Cannot delete.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Tapdance with ID 99 not found. Cannot delete.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for non-numeric tapdance ID', async () => {
         await sandbox.global.runDeleteTapdance("abc", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Invalid tapdance ID "abc"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Invalid tapdance ID "abc"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for negative tapdance ID', async () => {
         await sandbox.global.runDeleteTapdance("-1", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Invalid tapdance ID "-1"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Invalid tapdance ID "-1"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
         mockUsb.list = () => []; // Override for this test
         await sandbox.global.runDeleteTapdance("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
         mockUsb.open = async () => false; // Override for this test
         await sandbox.global.runDeleteTapdance("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.load fails to populate tapdance data', async () => {
@@ -204,37 +167,37 @@ describe('tapdance_delete.js command tests', () => {
             }
         });
         await sandbox.global.runDeleteTapdance("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Tapdance data not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Tapdance data not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.tapdance.push', async () => {
         setupTestEnvironment({}, {}, { push: async () => { throw new Error("Push Failed TD"); } });
         await sandbox.global.runDeleteTapdance("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Operation failed: Push Failed TD")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Operation failed: Push Failed TD")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.kb.saveTapDances', async () => {
         setupTestEnvironment({}, {}, {}, { saveTapDances: async () => { throw new Error("Save TD Failed"); } });
         await sandbox.global.runDeleteTapdance("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Operation failed: Save TD Failed")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Operation failed: Save TD Failed")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should warn if Vial.kb.saveTapDances is missing', async () => {
         setupTestEnvironment({}, {}, {}, { saveTapDances: undefined });
         await sandbox.global.runDeleteTapdance("0", {});
         const expectedLog = `Tapdance 0 deleted successfully (actions cleared, term set to ${DEFAULT_TAPPING_TERM_FOR_CLEAR_IN_LIB}ms).`;
-        assert.isTrue(consoleLogOutput.some(line => line.includes(expectedLog)));
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(expectedLog)));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if Vial.tapdance.push is missing', async () => {
         setupTestEnvironment({}, {}, { push: undefined });
         await sandbox.global.runDeleteTapdance("0", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.tapdance.push is not available. Cannot delete tapdance.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Vial.tapdance.push is not available. Cannot delete tapdance.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

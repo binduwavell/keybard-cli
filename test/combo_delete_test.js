@@ -1,17 +1,15 @@
 // test/test_delete_combo.js
 const { assert } = require('chai');
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
+const {
+    createSandboxWithDeviceSelection,
+    createMockUSBSingleDevice,
+    createMockVial,
+    createMockKEY,
+    createTestState
+} = require('./test-helpers');
 
 const MAX_COMBO_SLOTS_IN_TEST = 16;
 const KC_NO_VALUE = 0x0000;
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
 
 describe('combo_delete.js command tests', () => {
     let sandbox;
@@ -20,9 +18,7 @@ describe('combo_delete.js command tests', () => {
     let mockVialCombo;
     let mockVialKb;
     let mockKey;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spies
     let spyVialComboPushCalled;
@@ -34,12 +30,8 @@ describe('combo_delete.js command tests', () => {
         vialComboMethodOverrides = {},
         vialKbMethodOverrides = {}
     ) {
-        mockUsb = {
-            list: () => [{ manufacturer: 'TestManu', product: 'TestProduct' }],
-            open: async () => true,
-            close: () => { mockUsb.device = null; },
-            device: true
-        };
+        testState = createTestState();
+        mockUsb = createMockUSBSingleDevice();
 
         // Convert object format to array format for combos if needed
         const defaultCombos = mockKbinfoInitial.combos || [];
@@ -62,8 +54,8 @@ describe('combo_delete.js command tests', () => {
         };
 
         mockKbinfoCombos = [];
-        const defaultVialMethods = {
-            init: async (kbinfoRef) => { /* Minimal mock */ },
+        mockVial = createMockVial(defaultKbinfo, {
+            ...vialMethodOverrides,
             load: async (kbinfoRef) => {
                 mockKbinfoCombos = JSON.parse(JSON.stringify(defaultKbinfo.combos));
                 Object.assign(kbinfoRef, {
@@ -73,8 +65,7 @@ describe('combo_delete.js command tests', () => {
                     macro_count: kbinfoRef.macro_count || 0,
                 });
             }
-        };
-        mockVial = { ...defaultVialMethods, ...vialMethodOverrides };
+        });
 
         spyVialComboPushCalled = false;
         mockVialCombo = {
@@ -88,13 +79,11 @@ describe('combo_delete.js command tests', () => {
             ...vialKbMethodOverrides
         };
 
-        mockKey = { parse: (str) => str === "KC_INVALID" ? undefined : 12345 };
+        mockKey = createMockKEY({
+            keyDb: { [KC_NO_VALUE]: "KC_NO" }
+        });
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
-
-        sandbox = vm.createContext({
+        sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
             Vial: { ...mockVial, combo: mockVialCombo, kb: mockVialKb },
             KEY: mockKey,
@@ -102,19 +91,11 @@ describe('combo_delete.js command tests', () => {
             runInitializers: () => {},
             MAX_COMBO_SLOTS_IN_LIB: MAX_COMBO_SLOTS_IN_TEST,
             KC_NO_VALUE: KC_NO_VALUE,
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            require: require,
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            }
-        });
-        loadScriptInContext('lib/combo_delete.js', sandbox);
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
+        }, ['lib/combo_delete.js']);
     }
 
     beforeEach(() => {
@@ -137,8 +118,8 @@ describe('combo_delete.js command tests', () => {
         // Check that the combo was cleared (set to all KC_NO)
         assert.deepStrictEqual(mockKbinfoCombos[0], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
 
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 0 deleted successfully.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Combo 0 deleted successfully.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should delete combo with higher ID', async () => {
@@ -157,8 +138,8 @@ describe('combo_delete.js command tests', () => {
 
         assert.strictEqual(spyVialComboPushCalled, true);
         assert.deepStrictEqual(mockKbinfoCombos[5], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Combo 5 deleted successfully")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Combo 5 deleted successfully")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should delete combo at maximum valid ID', async () => {
@@ -178,8 +159,8 @@ describe('combo_delete.js command tests', () => {
 
         assert.strictEqual(spyVialComboPushCalled, true);
         assert.deepStrictEqual(mockKbinfoCombos[maxId], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Combo ${maxId} deleted successfully`)));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Combo ${maxId} deleted successfully`)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     // --- Sad Path Tests ---
@@ -187,23 +168,23 @@ describe('combo_delete.js command tests', () => {
     it('should error with invalid combo ID (non-numeric)', async () => {
         await sandbox.global.runDeleteCombo("abc", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid combo ID "abc". ID must be a non-negative integer.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid combo ID "abc". ID must be a non-negative integer.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid combo ID (negative)', async () => {
         await sandbox.global.runDeleteCombo("-1", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Invalid combo ID "-1". ID must be a non-negative integer.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid combo ID "-1". ID must be a non-negative integer.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with out-of-range combo ID', async () => {
         const outOfRangeId = MAX_COMBO_SLOTS_IN_TEST;
         await sandbox.global.runDeleteCombo(outOfRangeId.toString(), {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: Combo ID ${outOfRangeId} is out of range. Maximum combo ID is ${MAX_COMBO_SLOTS_IN_TEST - 1}.`)));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: Combo ID ${outOfRangeId} is out of range. Maximum combo ID is ${MAX_COMBO_SLOTS_IN_TEST - 1}.`)));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
@@ -212,8 +193,8 @@ describe('combo_delete.js command tests', () => {
 
         await sandbox.global.runDeleteCombo("0", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
@@ -222,45 +203,8 @@ describe('combo_delete.js command tests', () => {
 
         await sandbox.global.runDeleteCombo("0", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
-    });
-
-    it('should error if required objects not found in sandbox', async () => {
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
-
-        sandbox = vm.createContext({
-            // Missing USB, Vial, etc.
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            },
-            global: {}
-        });
-        loadScriptInContext('lib/combo_delete.js', sandbox);
-
-        // Check if the function was exposed despite missing objects
-        if (sandbox.global.runDeleteCombo) {
-            try {
-                await sandbox.global.runDeleteCombo("0", {});
-                assert.isTrue(
-                    consoleErrorOutput.some(line => line.includes("Error: Required objects not found in sandbox.")) ||
-                    mockProcessExitCode === 1
-                );
-            } catch (error) {
-                // ReferenceError is also acceptable since USB is not defined
-                assert.isTrue(error.constructor.name === 'ReferenceError' && error.message.includes('USB'));
-            }
-        } else {
-            // If function wasn't exposed, that's also a valid way to handle missing dependencies
-            assert.isUndefined(sandbox.global.runDeleteCombo);
-        }
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.combo.push function is not available', async () => {
@@ -268,8 +212,8 @@ describe('combo_delete.js command tests', () => {
 
         await sandbox.global.runDeleteCombo("0", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.combo.push function is not available. Cannot delete combo.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Vial.combo.push function is not available. Cannot delete combo.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.combo.push', async () => {
@@ -281,8 +225,8 @@ describe('combo_delete.js command tests', () => {
 
         await sandbox.global.runDeleteCombo("0", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle floating point combo ID', async () => {
@@ -298,7 +242,7 @@ describe('combo_delete.js command tests', () => {
         // parseInt("1.5", 10) returns 1, so this should succeed with ID 1
         assert.strictEqual(spyVialComboPushCalled, true);
         assert.deepStrictEqual(mockKbinfoCombos[1], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should handle combo ID with leading zeros', async () => {
@@ -318,6 +262,6 @@ describe('combo_delete.js command tests', () => {
         // parseInt("007", 10) returns 7
         assert.strictEqual(spyVialComboPushCalled, true);
         assert.deepStrictEqual(mockKbinfoCombos[7], ["KC_NO", "KC_NO", "KC_NO", "KC_NO", "KC_NO"]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

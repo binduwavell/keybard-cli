@@ -1,5 +1,9 @@
 const { expect } = require('chai');
-const sinon = require('sinon');
+const {
+    createTestState,
+    assertErrorMessage,
+    assertLogMessage
+} = require('./test-helpers');
 
 // Mock debug function for testing
 global.debug = () => () => {};
@@ -7,18 +11,10 @@ global.debug = () => () => {};
 const deviceSelection = require('../lib/common/device-selection');
 
 describe('device-selection.js tests', () => {
-    let consoleLogStub, consoleWarnStub, consoleErrorStub;
+    let testState;
 
     beforeEach(() => {
-        consoleLogStub = sinon.stub(console, 'log');
-        consoleWarnStub = sinon.stub(console, 'warn');
-        consoleErrorStub = sinon.stub(console, 'error');
-    });
-
-    afterEach(() => {
-        consoleLogStub.restore();
-        consoleWarnStub.restore();
-        consoleErrorStub.restore();
+        testState = createTestState();
     });
 
     describe('formatDeviceList', () => {
@@ -240,16 +236,31 @@ describe('device-selection.js tests', () => {
 
     describe('getAndSelectDevice', () => {
         let mockUSB;
+        let originalConsoleLog, originalConsoleError;
 
         beforeEach(() => {
+            // Capture original console methods
+            originalConsoleLog = console.log;
+            originalConsoleError = console.error;
+
+            // Replace with test state tracking
+            console.log = (...args) => testState.consoleLogOutput.push(args.join(' '));
+            console.error = (...args) => testState.consoleErrorOutput.push(args.join(' '));
+
             mockUSB = {
-                list: sinon.stub()
+                list: () => []
             };
+        });
+
+        afterEach(() => {
+            // Restore original console methods
+            console.log = originalConsoleLog;
+            console.error = originalConsoleError;
         });
 
         it('should return success with single device', () => {
             const devices = [{ manufacturer: 'TestManu', product: 'TestProduct' }];
-            mockUSB.list.returns(devices);
+            mockUSB.list = () => devices;
 
             const result = deviceSelection.getAndSelectDevice(mockUSB);
 
@@ -257,11 +268,11 @@ describe('device-selection.js tests', () => {
             expect(result.device).to.equal(devices[0]);
             expect(result.devices).to.equal(devices);
             expect(result.error).to.be.null;
-            expect(consoleLogStub.calledWith('Found 1 compatible device:\n  [0] TestManu TestProduct')).to.be.true;
+            assertLogMessage(testState.consoleLogOutput, 'Found 1 compatible device:\n  [0] TestManu TestProduct');
         });
 
         it('should return failure with no devices', () => {
-            mockUSB.list.returns([]);
+            mockUSB.list = () => [];
 
             const result = deviceSelection.getAndSelectDevice(mockUSB);
 
@@ -269,7 +280,7 @@ describe('device-selection.js tests', () => {
             expect(result.device).to.be.null;
             expect(result.devices).to.deep.equal([]);
             expect(result.error).to.equal('No compatible keyboard found.');
-            expect(consoleErrorStub.calledWith('No compatible keyboard found.')).to.be.true;
+            assertErrorMessage(testState.consoleErrorOutput, 'No compatible keyboard found.');
         });
 
         it('should return failure with multiple devices but no selector', () => {
@@ -277,7 +288,7 @@ describe('device-selection.js tests', () => {
                 { manufacturer: 'TestManu1', product: 'TestProduct1' },
                 { manufacturer: 'TestManu2', product: 'TestProduct2' }
             ];
-            mockUSB.list.returns(devices);
+            mockUSB.list = () => devices;
 
             const result = deviceSelection.getAndSelectDevice(mockUSB);
 
@@ -285,7 +296,7 @@ describe('device-selection.js tests', () => {
             expect(result.device).to.be.null;
             expect(result.devices).to.equal(devices);
             expect(result.error).to.equal('Multiple devices found (2 total). Please specify which device to use.');
-            expect(consoleErrorStub.calledWith('Multiple devices found (2 total). Please specify which device to use.')).to.be.true;
+            assertErrorMessage(testState.consoleErrorOutput, 'Multiple devices found (2 total). Please specify which device to use.');
         });
 
         it('should return success with device selector', () => {
@@ -293,7 +304,7 @@ describe('device-selection.js tests', () => {
                 { manufacturer: 'TestManu1', product: 'TestProduct1' },
                 { manufacturer: 'TestManu2', product: 'TestProduct2' }
             ];
-            mockUSB.list.returns(devices);
+            mockUSB.list = () => devices;
 
             const result = deviceSelection.getAndSelectDevice(mockUSB, { deviceSelector: '1' });
 
@@ -301,7 +312,7 @@ describe('device-selection.js tests', () => {
             expect(result.device).to.equal(devices[1]);
             expect(result.devices).to.equal(devices);
             expect(result.error).to.be.null;
-            expect(consoleLogStub.calledWith('Selected device: TestManu2 TestProduct2')).to.be.true;
+            assertLogMessage(testState.consoleLogOutput, 'Selected device: TestManu2 TestProduct2');
         });
 
         it('should return failure with invalid device selector', () => {
@@ -309,7 +320,7 @@ describe('device-selection.js tests', () => {
                 { manufacturer: 'TestManu1', product: 'TestProduct1' },
                 { manufacturer: 'TestManu2', product: 'TestProduct2' }
             ];
-            mockUSB.list.returns(devices);
+            mockUSB.list = () => devices;
 
             const result = deviceSelection.getAndSelectDevice(mockUSB, { deviceSelector: 'NonExistent' });
 
@@ -317,17 +328,17 @@ describe('device-selection.js tests', () => {
             expect(result.device).to.be.null;
             expect(result.devices).to.equal(devices);
             expect(result.error).to.equal('Device not found: "NonExistent". Use \'keyboard devices\' to see available devices.');
-            expect(consoleErrorStub.calledWith('Device not found: "NonExistent". Use \'keyboard devices\' to see available devices.')).to.be.true;
+            assertErrorMessage(testState.consoleErrorOutput, 'Device not found: "NonExistent". Use \'keyboard devices\' to see available devices.');
         });
 
         it('should not show devices when showDevices is false', () => {
             const devices = [{ manufacturer: 'TestManu', product: 'TestProduct' }];
-            mockUSB.list.returns(devices);
+            mockUSB.list = () => devices;
 
             const result = deviceSelection.getAndSelectDevice(mockUSB, { showDevices: false });
 
             expect(result.success).to.be.true;
-            expect(consoleLogStub.called).to.be.false;
+            expect(testState.consoleLogOutput.length).to.equal(0);
         });
 
         it('should show devices when multiple devices and no selector', () => {
@@ -335,35 +346,34 @@ describe('device-selection.js tests', () => {
                 { manufacturer: 'TestManu1', product: 'TestProduct1' },
                 { manufacturer: 'TestManu2', product: 'TestProduct2' }
             ];
-            mockUSB.list.returns(devices);
+            mockUSB.list = () => devices;
 
             const result = deviceSelection.getAndSelectDevice(mockUSB, { showDevices: false });
 
             expect(result.success).to.be.false;
             // Should still show devices because multiple devices require selection
-            expect(consoleLogStub.called).to.be.true;
+            expect(testState.consoleLogOutput.length).to.be.greaterThan(0);
         });
 
         it('should be silent when silent option is true', () => {
-            mockUSB.list.returns([]);
+            mockUSB.list = () => [];
 
             const result = deviceSelection.getAndSelectDevice(mockUSB, { silent: true });
 
             expect(result.success).to.be.false;
             // Critical errors like "no devices found" are always printed even in silent mode
-            expect(consoleErrorStub.called).to.be.true;
-            expect(consoleErrorStub.calledWith('No compatible keyboard found.')).to.be.true;
-            expect(consoleLogStub.called).to.be.false;
+            assertErrorMessage(testState.consoleErrorOutput, 'No compatible keyboard found.');
+            expect(testState.consoleLogOutput.length).to.equal(0);
         });
 
         it('should handle USB.list() throwing error', () => {
-            mockUSB.list.throws(new Error('USB error'));
+            mockUSB.list = () => { throw new Error('USB error'); };
 
             const result = deviceSelection.getAndSelectDevice(mockUSB);
 
             expect(result.success).to.be.false;
             expect(result.error).to.include('Device selection failed: USB error');
-            expect(consoleErrorStub.called).to.be.true;
+            expect(testState.consoleErrorOutput.length).to.be.greaterThan(0);
         });
     });
 
@@ -372,22 +382,29 @@ describe('device-selection.js tests', () => {
 
         beforeEach(() => {
             mockUSB = {
-                open: sinon.stub()
+                open: async () => true,
+                openCalled: false,
+                openCalledWith: null
             };
             mockDevice = { manufacturer: 'TestManu', product: 'TestProduct' };
         });
 
         it('should successfully open device connection', async () => {
-            mockUSB.open.resolves(true);
+            mockUSB.open = async (devices) => {
+                mockUSB.openCalled = true;
+                mockUSB.openCalledWith = devices;
+                return true;
+            };
 
             const result = await deviceSelection.openDeviceConnection(mockUSB, mockDevice);
 
             expect(result).to.be.true;
-            expect(mockUSB.open.calledWith([mockDevice])).to.be.true;
+            expect(mockUSB.openCalled).to.be.true;
+            expect(mockUSB.openCalledWith).to.deep.equal([mockDevice]);
         });
 
         it('should return false when USB.open fails', async () => {
-            mockUSB.open.resolves(false);
+            mockUSB.open = async () => false;
 
             const result = await deviceSelection.openDeviceConnection(mockUSB, mockDevice);
 
@@ -395,7 +412,7 @@ describe('device-selection.js tests', () => {
         });
 
         it('should handle USB.open throwing error', async () => {
-            mockUSB.open.throws(new Error('Connection error'));
+            mockUSB.open = async () => { throw new Error('Connection error'); };
 
             const result = await deviceSelection.openDeviceConnection(mockUSB, mockDevice);
 

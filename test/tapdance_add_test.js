@@ -1,15 +1,10 @@
-const { assert } = require('chai'); // Switched to Chai's assert
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
+const { assert } = require('chai');
+const {
+    createSandboxWithDeviceSelection,
+    createTestState
+} = require('./test-helpers');
 
 const MAX_TAPDANCE_SLOTS_IN_TEST = 4;
-
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
 
 describe('tapdance_add.js command tests', () => {
     let sandbox;
@@ -18,9 +13,7 @@ describe('tapdance_add.js command tests', () => {
     let mockVialTapdance;
     let mockVialKb;
     let mockKey;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spy variables
     let spyKeyParseCalls;
@@ -122,39 +115,25 @@ describe('tapdance_add.js command tests', () => {
         };
 
         mockKey = { parse: mockKeyParseImplementation, stringify: mockKeyStringifyImplementation };
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
         spyKeyParseCalls = [];
         spyKeyStringifyCalls = [];
 
-        sandbox = vm.createContext({
-            USB: mockUsb, Vial: { ...mockVial, tapdance: mockVialTapdance, kb: mockVialKb },
-            KEY: mockKey, fs: {}, runInitializers: () => {},
+        sandbox = createSandboxWithDeviceSelection({
+            USB: mockUsb,
+            Vial: { ...mockVial, tapdance: mockVialTapdance, kb: mockVialKb },
+            KEY: mockKey,
+            fs: {},
+            runInitializers: () => {},
             MAX_MACRO_SLOTS: MAX_TAPDANCE_SLOTS_IN_TEST, // Note: lib might use MAX_MACRO_SLOTS for tapdance count
             DEFAULT_TAPPING_TERM: 200,
             KC_NO_VALUE: 0x00,
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {},
-            process: {
-                get exitCode() { return mockProcessExitCode; },
-                set exitCode(val) { mockProcessExitCode = val; }
-            },
-            // Mock device selector function for tests
-            getDeviceSelector: () => null
-        });
-
-        // Load common utilities first
-        loadScriptInContext('lib/common/device-selection.js', sandbox);
-        loadScriptInContext('lib/common/command-utils.js', sandbox);
-
-        // Then load the tapdance script
-        loadScriptInContext('lib/tapdance_add.js', sandbox);
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
+        }, ['lib/common/command-utils.js', 'lib/tapdance_add.js']);
     }
 
     beforeEach(() => {
@@ -182,8 +161,8 @@ describe('tapdance_add.js command tests', () => {
         assert.strictEqual(pushedTd.tapms, 150);
 
         assert.isTrue(spyVialKbSaveTapDancesCalled, "Vial.kb.saveTapDances not called.");
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Tapdance successfully added with ID 0.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Tapdance successfully added with ID 0.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should add a complex tapdance and find the next empty slot', async () => {
@@ -207,8 +186,8 @@ describe('tapdance_add.js command tests', () => {
         assert.strictEqual(pushedTd.tapms, 250);
 
         assert.isTrue(spyVialKbSaveTapDancesCalled);
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Tapdance successfully added with ID 1.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Tapdance successfully added with ID 1.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should use default term if not specified', async () => {
@@ -218,26 +197,26 @@ describe('tapdance_add.js command tests', () => {
         const pushedTd = spyVialTapdancePushKbinfo.tapdances.find(td => td && td.tdid === 0);
         assert.ok(pushedTd);
         assert.strictEqual(pushedTd.tapms, 200); // DEFAULT_TAPPING_TERM
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if sequence has no actions', async () => {
         await sandbox.global.runAddTapdance("TERM(100)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Tapdance sequence must contain at least one action")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Tapdance sequence must contain at least one action")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if sequence contains an invalid key', async () => {
         await sandbox.global.runAddTapdance("TAP(KC_INVALID)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Invalid key string in tapdance sequence: "KC_INVALID"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Invalid key string in tapdance sequence: "KC_INVALID"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if sequence has an invalid format', async () => {
         const invalidActionString = "UNKNOWN_TAPDANCE_ACTION_FORMAT";
         await sandbox.global.runAddTapdance(invalidActionString, {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Unknown or invalid action format in tapdance sequence: "${invalidActionString}"`)));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Unknown or invalid action format in tapdance sequence: "${invalidActionString}"`)));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no empty tapdance slots are available', async () => {
@@ -247,24 +226,24 @@ describe('tapdance_add.js command tests', () => {
         }
         setupTestEnvironment({ tapdances: fullTds, tapdance_count: MAX_TAPDANCE_SLOTS_IN_TEST });
         await sandbox.global.runAddTapdance("TAP(KC_B)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No empty tapdance slots available.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No empty tapdance slots available.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
         setupTestEnvironment(); // Standard setup first
         mockUsb.list = () => []; // Then modify for this test
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
         setupTestEnvironment();
         mockUsb.open = async () => false;
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.load fails to populate tapdance data', async () => {
@@ -273,29 +252,29 @@ describe('tapdance_add.js command tests', () => {
             kbinfoRef.tapdance_count = undefined;
         }});
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Tapdance data not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Tapdance data not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.tapdance.push', async () => {
         setupTestEnvironment({tapdances: []}, {}, { push: async () => { throw new Error("Push Failed TD"); } });
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Operation failed: Push Failed TD")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Operation failed: Push Failed TD")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.kb.saveTapDances', async () => {
         setupTestEnvironment({tapdances: []}, {}, {}, { saveTapDances: async () => { throw new Error("Save TD Failed"); } });
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Operation failed: Save TD Failed")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Operation failed: Save TD Failed")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should warn if Vial.kb.saveTapDances is missing', async () => {
         setupTestEnvironment({tapdances: []}, {}, {}, { saveTapDances: undefined });
         await sandbox.global.runAddTapdance("TAP(KC_A)", {});
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Tapdance successfully added with ID 0.")));
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Tapdance successfully added with ID 0.")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit tapdance save function (Vial.kb.saveTapDances) found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

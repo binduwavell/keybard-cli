@@ -633,6 +633,183 @@ The debug output will show detailed information about:
 - Error conditions and recovery
 - Performance timing
 
+## Testing
+
+The project includes comprehensive unit tests for all CLI commands. Tests use VM sandboxes to isolate command execution and mock external dependencies.
+
+### Running Tests
+
+```bash
+npm test
+```
+
+### Test Structure
+
+Tests are located in the `test/` directory and follow the pattern `*_test.js`. Each command has its own test file that validates:
+
+- Successful command execution
+- Error handling for various failure scenarios
+- Device selection and connection logic
+- File I/O operations
+- Console output formatting
+
+### Test Helpers
+
+The project uses a comprehensive test helper system located in `test/test-helpers.js` to ensure consistency and maintainability across all tests.
+
+#### Core Helper Functions
+
+**Sandbox Creation:**
+- `createSandboxWithDeviceSelection()` - Creates VM sandbox with device selection support
+- `createBasicSandbox()` - Creates VM sandbox without device selection
+- `createTestState()` - Creates state tracking for console output and exit codes
+
+**Mock Objects:**
+- `createMockUSBSingleDevice()` - Mock USB with single device (auto-selection)
+- `createMockUSBMultipleDevices()` - Mock USB with multiple devices (requires selection)
+- `createMockUSBNoDevices()` - Mock USB with no devices
+- `createMockVial()` - Mock Vial object with customizable methods
+- `createMockKEY()` - Mock KEY object with parse/stringify functionality
+- `createMockFS()` - Mock file system object
+- `createMockPath()` - Mock path operations (join, resolve, dirname, basename, extname)
+- `createMockProcess()` - Mock process object with exit code tracking
+- `createSpy()` - Spy function with call tracking and verification
+- `createMockReadline()` - Mock readline interface for interactive prompts
+
+**Assertion Helpers:**
+- `assertErrorMessage()` - Assert console error contains message
+- `assertLogMessage()` - Assert console log contains message
+- `assertExitCode()` - Assert process exit code matches expected
+
+#### Writing Tests with Helpers
+
+**Preferred Pattern (NEW):**
+```javascript
+const {
+    createSandboxWithDeviceSelection,
+    createMockUSBSingleDevice,
+    createMockVial,
+    createTestState
+} = require('./test-helpers');
+
+describe('my_command.js tests', () => {
+    let sandbox, testState;
+
+    function setupTestEnvironment(mockKbinfoData = {}, vialOverrides = {}) {
+        testState = createTestState();
+
+        const mockUsb = createMockUSBSingleDevice();
+        const mockVial = createMockVial(mockKbinfoData, vialOverrides);
+
+        sandbox = createSandboxWithDeviceSelection({
+            USB: mockUsb,
+            Vial: mockVial,
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
+        }, ['lib/my_command.js']);
+    }
+
+    beforeEach(() => {
+        setupTestEnvironment();
+    });
+
+    it('should execute successfully', async () => {
+        await sandbox.global.runMyCommand({});
+
+        expect(testState.consoleLogOutput.some(line =>
+            line.includes('Success message'))).to.be.true;
+        expect(testState.mockProcessExitCode).to.equal(0);
+    });
+});
+```
+
+**Deprecated Pattern (OLD - DO NOT USE):**
+```javascript
+// ❌ DEPRECATED - Direct VM context creation
+const vm = require('vm');
+
+describe('my_command.js tests', () => {
+    let sandbox, consoleLogOutput, consoleErrorOutput, mockProcessExitCode;
+
+    function setupTestEnvironment() {
+        consoleLogOutput = [];
+        consoleErrorOutput = [];
+        mockProcessExitCode = undefined;
+
+        sandbox = vm.createContext({
+            // Manual setup...
+        });
+    }
+});
+```
+
+#### Migration Guide
+
+When updating existing tests:
+
+1. **Replace imports:**
+   ```javascript
+   // OLD
+   const vm = require('vm');
+   const fs = require('fs');
+   const path = require('path');
+
+   // NEW
+   const {
+       createSandboxWithDeviceSelection,
+       createMockUSBSingleDevice,
+       createMockVial,
+       createTestState
+   } = require('./test-helpers');
+   ```
+
+2. **Replace setup functions:**
+   ```javascript
+   // OLD
+   function setupTestEnvironment() {
+       consoleLogOutput = [];
+       consoleErrorOutput = [];
+       mockProcessExitCode = undefined;
+       sandbox = vm.createContext({...});
+   }
+
+   // NEW
+   function setupTestEnvironment() {
+       testState = createTestState();
+       mockUsb = createMockUSBSingleDevice();
+       mockVial = createMockVial(defaultKbinfo, vialOverrides);
+       sandbox = createSandboxWithDeviceSelection({
+           USB: mockUsb,
+           Vial: mockVial,
+           consoleLogOutput: testState.consoleLogOutput,
+           consoleErrorOutput: testState.consoleErrorOutput,
+           mockProcessExitCode: testState.mockProcessExitCode,
+           setMockProcessExitCode: testState.setMockProcessExitCode
+       }, ['lib/command.js']);
+   }
+   ```
+
+3. **Update test assertions:**
+   ```javascript
+   // OLD
+   assert.isTrue(consoleErrorOutput.some(line => line.includes("Error message")));
+   assert.strictEqual(mockProcessExitCode, 1);
+
+   // NEW
+   assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error message")));
+   assert.strictEqual(testState.mockProcessExitCode, 1);
+   ```
+
+#### Benefits of Test Helpers
+
+- **Consistency** - All tests use the same patterns and helpers
+- **Maintainability** - Changes to test infrastructure only need to be made in one place
+- **Readability** - Tests focus on business logic rather than setup boilerplate
+- **Reusability** - Common mock objects and patterns are easily shared
+- **Type Safety** - Better structure and validation of test state
+
 ## Contributing
 
 Contributions are welcome! Please feel free to open an issue to report bugs or suggest features, or submit a pull request with your improvements.

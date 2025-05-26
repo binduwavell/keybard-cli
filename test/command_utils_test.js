@@ -1,58 +1,47 @@
 const { expect } = require('chai');
-const sinon = require('sinon');
-const vm = require('vm');
-const fs = require('fs');
-const path = require('path');
-
-// Helper to load script into a new context
-function loadScriptInContext(scriptPath, context) {
-    const absoluteScriptPath = path.resolve(__dirname, '..', scriptPath);
-    const scriptCode = fs.readFileSync(absoluteScriptPath, 'utf8');
-    vm.runInContext(scriptCode, context);
-}
+const {
+    createBasicSandbox,
+    createTestState,
+    loadScriptInContext
+} = require('./test-helpers');
 
 describe('command-utils.js tests', () => {
     let sandbox;
     let mockUSB, mockVial, mockDeviceSelection;
-    let consoleLogOutput, consoleErrorOutput;
+    let testState;
 
     function setupTestEnvironment() {
+        testState = createTestState();
+
         mockUSB = {
-            list: sinon.stub(),
-            open: sinon.stub(),
-            close: sinon.stub(),
+            list: () => [],
+            open: async () => true,
+            close: () => {},
             device: null
         };
 
         mockVial = {
-            init: sinon.stub(),
-            load: sinon.stub()
+            init: async () => {},
+            load: async () => {}
         };
 
         mockDeviceSelection = {
-            getAndSelectDevice: sinon.stub(),
-            openDeviceConnection: sinon.stub()
+            getAndSelectDevice: () => ({ success: false, device: null, devices: [], error: 'No devices' }),
+            openDeviceConnection: async () => false
         };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-
-        sandbox = vm.createContext({
+        sandbox = createBasicSandbox({
             USB: mockUSB,
             Vial: mockVial,
-            runInitializers: sinon.stub(),
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            global: {
-                deviceSelection: mockDeviceSelection
-            },
-            debug: () => () => {}
-        });
+            runInitializers: () => {},
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
+        }, ['lib/common/command-utils.js']);
 
-        // Load command utils only (we're mocking device selection)
-        loadScriptInContext('lib/common/command-utils.js', sandbox);
+        // Add device selection to global after sandbox creation
+        sandbox.global.deviceSelection = mockDeviceSelection;
     }
 
     beforeEach(() => {
@@ -63,42 +52,61 @@ describe('command-utils.js tests', () => {
         it('should successfully connect and run operation', async () => {
             // Setup successful device selection and connection
             const mockDevice = { manufacturer: 'TestManu', product: 'TestProduct' };
-            mockDeviceSelection.getAndSelectDevice.returns({
-                success: true,
-                device: mockDevice,
-                devices: [mockDevice],
-                error: null
-            });
-            mockDeviceSelection.openDeviceConnection.resolves(true);
-            mockVial.init.resolves();
-            mockVial.load.resolves();
+            let getAndSelectDeviceCalled = false;
+            let openDeviceConnectionCalled = false;
+            let openDeviceConnectionCalledWith = null;
+            let vialInitCalled = false;
+            let vialLoadCalled = false;
+            let operationCalled = false;
 
-            const mockOperation = sinon.stub().resolves({ success: true, result: 'test result' });
+            mockDeviceSelection.getAndSelectDevice = () => {
+                getAndSelectDeviceCalled = true;
+                return {
+                    success: true,
+                    device: mockDevice,
+                    devices: [mockDevice],
+                    error: null
+                };
+            };
+            mockDeviceSelection.openDeviceConnection = async (usb, device) => {
+                openDeviceConnectionCalled = true;
+                openDeviceConnectionCalledWith = { usb, device };
+                return true;
+            };
+            mockVial.init = async () => { vialInitCalled = true; };
+            mockVial.load = async () => { vialLoadCalled = true; };
+
+            const mockOperation = async () => {
+                operationCalled = true;
+                return { success: true, result: 'test result' };
+            };
 
             const result = await sandbox.global.withDeviceConnection({
                 USB: mockUSB,
                 Vial: mockVial,
-                runInitializers: sandbox.runInitializers,
+                runInitializers: () => {},
                 requiredObjects: { USB: mockUSB, Vial: mockVial },
                 operation: mockOperation
             });
 
             expect(result.success).to.be.true;
             expect(result.result.result).to.equal('test result');
-            expect(mockDeviceSelection.getAndSelectDevice.called).to.be.true;
-            expect(mockDeviceSelection.openDeviceConnection.calledWith(mockUSB, mockDevice)).to.be.true;
-            expect(mockVial.init.called).to.be.true;
-            expect(mockVial.load.called).to.be.true;
-            expect(mockOperation.called).to.be.true;
+            expect(getAndSelectDeviceCalled).to.be.true;
+            expect(openDeviceConnectionCalled).to.be.true;
+            expect(openDeviceConnectionCalledWith.usb).to.equal(mockUSB);
+            expect(openDeviceConnectionCalledWith.device).to.equal(mockDevice);
+            expect(vialInitCalled).to.be.true;
+            expect(vialLoadCalled).to.be.true;
+            expect(operationCalled).to.be.true;
         });
 
         it('should fail if required objects are missing', async () => {
             const result = await sandbox.global.withDeviceConnection({
                 USB: null,
                 Vial: mockVial,
-                runInitializers: sandbox.runInitializers,
+                runInitializers: () => {},
                 requiredObjects: { USB: null, Vial: mockVial },
-                operation: sinon.stub()
+                operation: async () => {}
             });
 
             expect(result.success).to.be.false;
@@ -106,7 +114,7 @@ describe('command-utils.js tests', () => {
         });
 
         it('should fail if device selection fails', async () => {
-            mockDeviceSelection.getAndSelectDevice.returns({
+            mockDeviceSelection.getAndSelectDevice = () => ({
                 success: false,
                 device: null,
                 devices: [],
@@ -116,9 +124,9 @@ describe('command-utils.js tests', () => {
             const result = await sandbox.global.withDeviceConnection({
                 USB: mockUSB,
                 Vial: mockVial,
-                runInitializers: sandbox.runInitializers,
+                runInitializers: () => {},
                 requiredObjects: { USB: mockUSB, Vial: mockVial },
-                operation: sinon.stub()
+                operation: async () => {}
             });
 
             expect(result.success).to.be.false;
@@ -127,20 +135,20 @@ describe('command-utils.js tests', () => {
 
         it('should fail if device connection fails', async () => {
             const mockDevice = { manufacturer: 'TestManu', product: 'TestProduct' };
-            mockDeviceSelection.getAndSelectDevice.returns({
+            mockDeviceSelection.getAndSelectDevice = () => ({
                 success: true,
                 device: mockDevice,
                 devices: [mockDevice],
                 error: null
             });
-            mockDeviceSelection.openDeviceConnection.resolves(false);
+            mockDeviceSelection.openDeviceConnection = async () => false;
 
             const result = await sandbox.global.withDeviceConnection({
                 USB: mockUSB,
                 Vial: mockVial,
-                runInitializers: sandbox.runInitializers,
+                runInitializers: () => {},
                 requiredObjects: { USB: mockUSB, Vial: mockVial },
-                operation: sinon.stub()
+                operation: async () => {}
             });
 
             expect(result.success).to.be.false;
@@ -149,47 +157,52 @@ describe('command-utils.js tests', () => {
 
         it('should skip data loading when loadData is false', async () => {
             const mockDevice = { manufacturer: 'TestManu', product: 'TestProduct' };
-            mockDeviceSelection.getAndSelectDevice.returns({
+            let vialInitCalled = false;
+            let vialLoadCalled = false;
+
+            mockDeviceSelection.getAndSelectDevice = () => ({
                 success: true,
                 device: mockDevice,
                 devices: [mockDevice],
                 error: null
             });
-            mockDeviceSelection.openDeviceConnection.resolves(true);
+            mockDeviceSelection.openDeviceConnection = async () => true;
+            mockVial.init = async () => { vialInitCalled = true; };
+            mockVial.load = async () => { vialLoadCalled = true; };
 
-            const mockOperation = sinon.stub().resolves({ success: true });
+            const mockOperation = async () => ({ success: true });
 
             const result = await sandbox.global.withDeviceConnection({
                 USB: mockUSB,
                 Vial: mockVial,
-                runInitializers: sandbox.runInitializers,
+                runInitializers: () => {},
                 requiredObjects: { USB: mockUSB, Vial: mockVial },
                 loadData: false,
                 operation: mockOperation
             });
 
             expect(result.success).to.be.true;
-            expect(mockVial.init.called).to.be.false;
-            expect(mockVial.load.called).to.be.false;
+            expect(vialInitCalled).to.be.false;
+            expect(vialLoadCalled).to.be.false;
         });
 
         it('should handle Vial.init failure', async () => {
             const mockDevice = { manufacturer: 'TestManu', product: 'TestProduct' };
-            mockDeviceSelection.getAndSelectDevice.returns({
+            mockDeviceSelection.getAndSelectDevice = () => ({
                 success: true,
                 device: mockDevice,
                 devices: [mockDevice],
                 error: null
             });
-            mockDeviceSelection.openDeviceConnection.resolves(true);
-            mockVial.init.rejects(new Error('Vial init failed'));
+            mockDeviceSelection.openDeviceConnection = async () => true;
+            mockVial.init = async () => { throw new Error('Vial init failed'); };
 
             const result = await sandbox.global.withDeviceConnection({
                 USB: mockUSB,
                 Vial: mockVial,
-                runInitializers: sandbox.runInitializers,
+                runInitializers: () => {},
                 requiredObjects: { USB: mockUSB, Vial: mockVial },
-                operation: sinon.stub()
+                operation: async () => {}
             });
 
             expect(result.success).to.be.false;
@@ -198,22 +211,22 @@ describe('command-utils.js tests', () => {
 
         it('should handle operation failure', async () => {
             const mockDevice = { manufacturer: 'TestManu', product: 'TestProduct' };
-            mockDeviceSelection.getAndSelectDevice.returns({
+            mockDeviceSelection.getAndSelectDevice = () => ({
                 success: true,
                 device: mockDevice,
                 devices: [mockDevice],
                 error: null
             });
-            mockDeviceSelection.openDeviceConnection.resolves(true);
-            mockVial.init.resolves();
-            mockVial.load.resolves();
+            mockDeviceSelection.openDeviceConnection = async () => true;
+            mockVial.init = async () => {};
+            mockVial.load = async () => {};
 
-            const mockOperation = sinon.stub().rejects(new Error('Operation failed'));
+            const mockOperation = async () => { throw new Error('Operation failed'); };
 
             const result = await sandbox.global.withDeviceConnection({
                 USB: mockUSB,
                 Vial: mockVial,
-                runInitializers: sandbox.runInitializers,
+                runInitializers: () => {},
                 requiredObjects: { USB: mockUSB, Vial: mockVial },
                 operation: mockOperation
             });
@@ -224,29 +237,35 @@ describe('command-utils.js tests', () => {
 
         it('should pass device options to device selection', async () => {
             const mockDevice = { manufacturer: 'TestManu', product: 'TestProduct' };
-            mockDeviceSelection.getAndSelectDevice.returns({
-                success: true,
-                device: mockDevice,
-                devices: [mockDevice],
-                error: null
-            });
-            mockDeviceSelection.openDeviceConnection.resolves(true);
-            mockVial.init.resolves();
-            mockVial.load.resolves();
+            let getAndSelectDeviceCalledWith = null;
+
+            mockDeviceSelection.getAndSelectDevice = (usb, options) => {
+                getAndSelectDeviceCalledWith = { usb, options };
+                return {
+                    success: true,
+                    device: mockDevice,
+                    devices: [mockDevice],
+                    error: null
+                };
+            };
+            mockDeviceSelection.openDeviceConnection = async () => true;
+            mockVial.init = async () => {};
+            mockVial.load = async () => {};
 
             const deviceOptions = { showDevices: false };
-            const mockOperation = sinon.stub().resolves({ success: true });
+            const mockOperation = async () => ({ success: true });
 
             await sandbox.global.withDeviceConnection({
                 USB: mockUSB,
                 Vial: mockVial,
-                runInitializers: sandbox.runInitializers,
+                runInitializers: () => {},
                 requiredObjects: { USB: mockUSB, Vial: mockVial },
                 deviceOptions,
                 operation: mockOperation
             });
 
-            expect(mockDeviceSelection.getAndSelectDevice.calledWith(mockUSB, deviceOptions)).to.be.true;
+            expect(getAndSelectDeviceCalledWith.usb).to.equal(mockUSB);
+            expect(getAndSelectDeviceCalledWith.options).to.deep.equal(deviceOptions);
         });
     });
 });
