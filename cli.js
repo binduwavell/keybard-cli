@@ -30,7 +30,11 @@ const sandbox = {
   require: require,
   TextDecoder: TextDecoder,
   TextEncoder: TextEncoder,
-  xzwasm: {XzReadableStream: XzReadableStream}
+  xzwasm: {XzReadableStream: XzReadableStream},
+  setTimeout: setTimeout,
+  clearTimeout: clearTimeout,
+  setInterval: setInterval,
+  clearInterval: clearInterval
 }
 vm.createContext(sandbox);
 
