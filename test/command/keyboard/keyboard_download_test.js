@@ -177,7 +177,7 @@ describe('keyboard_download.js command tests', () => {
 
     it('should error for invalid file extension (e.g., .txt)', async () => {
         await sandbox.global.runDownloadFile("output.txt", {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Invalid filepath. Output file must have a .svl extension.")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Invalid filepath. Output file must have a .svl or .kbi extension.")));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
@@ -212,5 +212,54 @@ describe('keyboard_download.js command tests', () => {
         await sandbox.global.runDownloadFile("output.svl", {});
         assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: Keymap data or dimensions not found in kbinfo.")));
         assert.strictEqual(testState.mockProcessExitCode, 0); // Should still proceed and output what it can
+    });
+
+    // Tests for .kbi file functionality
+    it('should download raw keyboard info to a .kbi file', async () => {
+        const mockData = {
+            layers: 2, rows: 2, cols: 2, name: "TestKbd", vid: "0x1234", pid: "0x5678",
+            keymap: [ [10, 11, 12, 13], [20, 21, 22, 23] ],
+            macros: [{ mid: 0, actions: [['tap', 100]] }],
+            key_overrides: [{ koid: 0, trigger_key: 200, override_key: 201 }],
+            qmk_settings: { "brightness": 100, "rgb_effect": "solid" },
+            extra_field: "should be included in kbi"
+        };
+        setupTestEnvironment({ mockKbinfoData: mockData });
+
+        const filepath = "keyboard_info.kbi";
+        await sandbox.global.runDownloadFile(filepath, {});
+
+        assert.ok(mockFs.lastWritePath, "fs.writeFileSync was not called");
+        assert.strictEqual(mockFs.lastWritePath, filepath);
+        const savedData = JSON.parse(mockFs.lastWriteData);
+
+        // .kbi should contain the raw kbinfo data
+        assert.deepStrictEqual(savedData, mockData);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Keyboard info successfully downloaded to ${filepath}`)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should handle .kbi file write errors', async () => {
+        const mockData = { layers: 1, rows: 1, cols: 1, keymap: [[1]] };
+        setupTestEnvironment({
+            mockKbinfoData: mockData,
+            fsConfig: { writeFileSyncThrows: true }
+        });
+
+        await sandbox.global.runDownloadFile("keyboard_info.kbi", {});
+        assert.ok(mockFs.lastWritePath); // Should still be attempted
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error writing keyboard info to file \"keyboard_info.kbi\": Simulated fs.writeFileSync error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
+    });
+
+    it('should download .kbi file with minimal data', async () => {
+        const mockData = { layers: 0, rows: 0, cols: 0 };
+        setupTestEnvironment({ mockKbinfoData: mockData });
+
+        await sandbox.global.runDownloadFile("minimal.kbi", {});
+        assert.ok(mockFs.lastWritePath);
+        const savedData = JSON.parse(mockFs.lastWriteData);
+        assert.deepStrictEqual(savedData, mockData);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

@@ -12,15 +12,19 @@
 
 # Cleanup
 
-- [ ] Review @memory/test/testing-best-practices.md and @README.md try to reduce duplication. /README.md should include general information and reference /memory/test/testing-best-practices.md for more detailed testing advice
-- [ ] Integrate the `keyboard info` command into the `keyboard download` command producing a `.kbi` file
-- [ ] Consider updating `keyboard download` to make `.kbi` the default format
-- [ ] Update `keyboard download` tests to validate downloading `.kbi` files
-- [ ] The `keyboard info` command and it's tests should be removed
-- [ ] Update `keyboard upload` to support uploading `.kbi` files
-- [ ] Consider updating `keyboard upload` to make `.kbi` the default format
-- [ ] Update `keyboard upload` tests to validate uploading `.kbi` files
-- [ ] Update @README.md to reflect the changes above
+- [x] Review @memory/test/testing-best-practices.md and @README.md try to reduce duplication. /README.md should include general information and reference /memory/test/testing-best-practices.md for more detailed testing advice
+- [x] Integrate the `keyboard info` command into the `keyboard download` command producing a `.kbi` file
+- [x] Consider updating `keyboard download` to make `.kbi` the default format (Decision: Keep current explicit format selection via file extension - no breaking changes needed)
+- [x] Update `keyboard download` tests to validate downloading `.kbi` files
+- [x] The `keyboard info` command and it's tests should be removed
+- [x] Update `keyboard upload` to support uploading `.kbi` files
+- [x] Consider updating `keyboard upload` to make `.kbi` the default format (Decision: Keep current explicit format selection via file extension - no breaking changes needed)
+- [x] Update `keyboard upload` tests to validate uploading `.kbi` files
+- [x] Update @README.md to reflect the changes above
+- [ ] `keyboard upload` should validate that the file being uploaded is a valid `.kbi` file and provide a helpful error message if it is not
+- [ ] `keyboard upload` should not console log `updating [ #, #, # ] ###` this should be a debug statement at most
+- [ ] `keyboard upload` with a `.kbi` must upload combos, key-overrides, tapdances or qmk-settings
+  - You may test with `~/Downloads/keyboard-prom.kbi` as this is a valid `.kbi` file for my svalboard (device 1)
 
 # key-override commands
 

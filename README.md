@@ -58,10 +58,10 @@ Once installed, you can use the `keybard-cli` executable (or `node keybard-cli.j
 ./keybard-cli.js keyboard devices
 ```
 
-**Get keyboard information:**
+**Download keyboard information:**
 
 ```bash
-./keybard-cli.js keyboard info
+./keybard-cli.js keyboard download keyboard_info.kbi
 ```
 
 ## Available Commands
@@ -89,19 +89,6 @@ List all connected USB HID devices compatible with Vial.
 ```bash
 ./keybard-cli.js keyboard devices
 ```
-
-### `keyboard info`
-
-Pull all available information from the connected keyboard.
-
-**Usage:**
-```bash
-./keybard-cli.js keyboard info
-./keybard-cli.js keyboard info -o keyboard_info.json
-```
-
-**Options:**
-- `-o, --output <filepath>`: Save keyboard information to JSON file
 
 ### `keyboard get-keymap`
 
@@ -162,30 +149,39 @@ Save the current keyboard keymap to a file in JSON format.
 
 ### `keyboard upload`
 
-Upload and apply a .vil (Vial keymap) or .svl (Svalboard/KeyBard full config) file to the keyboard.
+Upload and apply a keyboard configuration file to the keyboard.
 
 **Usage:**
 ```bash
 ./keybard-cli.js keyboard upload config.svl
 ./keybard-cli.js keyboard upload keymap.vil
+./keybard-cli.js keyboard upload keyboard_info.kbi
 ```
 
 **Arguments:**
-- `<filepath>`: Path to .vil or .svl file
+- `<filepath>`: Path to configuration file
 
-**Supported file types:** .vil, .svl
+**Supported file types:**
+- `.vil` - Vial configuration file
+- `.svl` - Structured configuration file (keymap, macros, overrides, settings)
+- `.kbi` - Raw keyboard info file (all available data)
 
 ### `keyboard download`
 
-Download the current keyboard configuration (keymap, macros, overrides, settings) to an .svl file.
+Download the current keyboard configuration to a file.
 
 **Usage:**
 ```bash
 ./keybard-cli.js keyboard download backup.svl
+./keybard-cli.js keyboard download keyboard_info.kbi
 ```
 
 **Arguments:**
-- `<filepath>`: Output file path (must have .svl extension)
+- `<filepath>`: Output file path
+
+**Supported file types:**
+- `.svl` - Full configuration (keymap, macros, overrides, settings)
+- `.kbi` - Raw keyboard info (all available data)
 
 ---
 
@@ -580,22 +576,22 @@ To enable debug output, set the `DEBUG` environment variable before running any 
 
 **Enable all debug output:**
 ```bash
-DEBUG=keybard* ./keybard-cli.js keyboard info
+DEBUG=keybard* ./keybard-cli.js keyboard download keyboard_info.kbi
 ```
 
 **Enable specific debug categories:**
 ```bash
 # CLI operations only
-DEBUG=keybard:cli ./keybard-cli.js keyboard info
+DEBUG=keybard:cli ./keybard-cli.js keyboard download keyboard_info.kbi
 
 # USB operations only
-DEBUG=keybard:usb ./keybard-cli.js keyboard info
+DEBUG=keybard:usb ./keybard-cli.js keyboard download keyboard_info.kbi
 
 # Macro operations only
 DEBUG=keybard:macro ./keybard-cli.js macro list
 
 # Multiple categories
-DEBUG=keybard:cli,keybard:usb ./keybard-cli.js keyboard info
+DEBUG=keybard:cli,keybard:usb ./keybard-cli.js keyboard download keyboard_info.kbi
 ```
 
 ### Available Debug Categories
@@ -614,10 +610,10 @@ DEBUG=keybard:cli,keybard:usb ./keybard-cli.js keyboard info
 
 ```bash
 # See CLI operations and file loading
-DEBUG=keybard:cli ./keybard-cli.js keyboard info
+DEBUG=keybard:cli ./keybard-cli.js keyboard download keyboard_info.kbi
 
 # See USB device detection and connection details
-DEBUG=keybard:usb ./keybard-cli.js keyboard info
+DEBUG=keybard:usb ./keybard-cli.js keyboard download keyboard_info.kbi
 
 # See detailed macro processing
 DEBUG=keybard:macro ./keybard-cli.js macro add "KC_H,KC_I"
@@ -653,229 +649,19 @@ Tests are located in the `test/` directory and follow the pattern `*_test.js`. E
 - File I/O operations
 - Console output formatting
 
-### Test Helpers
+### Test Helpers and Best Practices
 
-The project uses a comprehensive test helper system located in `test/test-helpers.js` to ensure consistency and maintainability across all tests.
+The project uses a comprehensive test helper system located in `test/test-helpers.js` to ensure consistency and maintainability across all tests. For detailed information about writing tests, using test helpers, and following best practices, please refer to:
 
-#### Core Helper Functions
+**[Testing Best Practices Guide](memory/test/testing-best-practices.md)**
 
-**Sandbox Creation:**
-- `createSandboxWithDeviceSelection()` - Creates VM sandbox with device selection support
-- `createBasicSandbox()` - Creates VM sandbox without device selection
-- `createTestState()` - Creates state tracking for console output and exit codes
-
-**Mock Objects:**
-- `createMockUSBSingleDevice()` - Mock USB with single device (auto-selection)
-- `createMockUSBMultipleDevices()` - Mock USB with multiple devices (requires selection)
-- `createMockUSBNoDevices()` - Mock USB with no devices
-- `createMockVial()` - Mock Vial object with customizable methods
-- `createMockKEY()` - Mock KEY object with parse/stringify functionality
-- `createMockFS()` - Mock file system object
-- `createMockPath()` - Mock path operations (join, resolve, dirname, basename, extname)
-- `createMockProcess()` - Mock process object with exit code tracking
-- `createSpy()` - Spy function with call tracking and verification
-- `createMockReadline()` - Mock readline interface for interactive prompts
-
-**Assertion Helpers:**
-- `assertErrorMessage()` - Assert console error contains message
-- `assertLogMessage()` - Assert console log contains message
-- `assertExitCode()` - Assert process exit code matches expected
-
-#### Writing Tests with Helpers
-
-**Preferred Pattern:**
-```javascript
-const {
-    createSandboxWithDeviceSelection,
-    createMockUSBSingleDevice,
-    createMockVial,
-    createMockKEY,
-    createMockFS,
-    createTestState
-} = require('./test-helpers');
-
-describe('my_command.js tests', () => {
-    let sandbox, testState, mockUsb, mockVial;
-
-    function setupTestEnvironment(mockKbinfoData = {}, vialOverrides = {}) {
-        testState = createTestState();
-        mockUsb = createMockUSBSingleDevice();
-        mockVial = createMockVial(mockKbinfoData, vialOverrides);
-
-        // Use spread operator for cleaner syntax
-        sandbox = createSandboxWithDeviceSelection({
-            USB: mockUsb,
-            Vial: mockVial,
-            KEY: createMockKEY(),
-            fs: createMockFS(),
-            ...testState  // Spreads console, mockProcessExitCode, setMockProcessExitCode
-        }, ['lib/my_command.js']);
-    }
-
-    beforeEach(() => {
-        setupTestEnvironment();
-    });
-
-    it('should execute successfully', async () => {
-        await sandbox.global.runMyCommand({});
-
-        assert.isTrue(testState.consoleLogOutput.some(line =>
-            line.includes('Success message')));
-        assert.strictEqual(testState.mockProcessExitCode, 0);
-    });
-
-    it('should handle file operations', async () => {
-        const mockFs = createMockFS();
-        setupTestEnvironment({}, {}, { fs: mockFs });
-
-        await sandbox.global.runMyCommand({ output: 'test.json' });
-
-        assert.strictEqual(mockFs.lastWritePath, 'test.json');
-        assert.isNotNull(mockFs.lastWriteData);
-    });
-});
-```
-
-**Alternative Pattern (for complex mocking):**
-```javascript
-const {
-    createBasicSandbox,
-    createMockUSBMultipleDevices,
-    createMockVial,
-    createMockKEY,
-    createSpy,
-    createTestState
-} = require('./test-helpers');
-
-describe('complex_command.js tests', () => {
-    let sandbox, testState, spyKeyCalls;
-
-    function setupTestEnvironment() {
-        testState = createTestState();
-        spyKeyCalls = [];
-
-        const mockUsb = createMockUSBMultipleDevices();
-        const mockVial = createMockVial({
-            macros: [{ actions: ['KC_A', 'KC_B'] }],
-            macro_count: 1
-        });
-        const mockKey = createMockKEY({ spyParseCalls: spyKeyCalls });
-
-        sandbox = createBasicSandbox({
-            USB: mockUsb,
-            Vial: mockVial,
-            KEY: mockKey,
-            customFunction: createSpy(() => 'mocked result'),
-            ...testState
-        }, ['lib/complex_command.js']);
-    }
-
-    beforeEach(() => {
-        setupTestEnvironment();
-    });
-
-    it('should track key parsing calls', async () => {
-        await sandbox.global.runComplexCommand('KC_A');
-
-        assert.deepStrictEqual(spyKeyCalls, ['KC_A']);
-        assert.strictEqual(testState.mockProcessExitCode, 0);
-    });
-});
-```
-
-#### Advanced Testing Patterns
-
-**Testing Error Conditions:**
-```javascript
-it('should handle USB connection failure', async () => {
-    setupTestEnvironment();
-    mockUsb.open = async () => false; // Simulate connection failure
-
-    await sandbox.global.runMyCommand({});
-
-    assert.isTrue(testState.consoleErrorOutput.some(line =>
-        line.includes('Could not open USB device')));
-    assert.strictEqual(testState.mockProcessExitCode, 1);
-});
-```
-
-**Testing File System Operations:**
-```javascript
-it('should handle file write errors', async () => {
-    const mockFs = createMockFS({ throwError: 'Permission denied' });
-    testState = createTestState();
-
-    sandbox = createSandboxWithDeviceSelection({
-        USB: createMockUSBSingleDevice(),
-        Vial: createMockVial(),
-        fs: mockFs,
-        ...testState
-    }, ['lib/my_command.js']);
-
-    await sandbox.global.runMyCommand({ output: 'readonly.json' });
-
-    assert.isTrue(testState.consoleErrorOutput.some(line =>
-        line.includes('Permission denied')));
-});
-```
-
-**Testing Interactive Prompts:**
-```javascript
-const { createMockReadline } = require('./test-helpers');
-
-it('should handle user input', async () => {
-    const mockReadline = createMockReadline(['1', 'yes']); // User responses
-
-    sandbox = createSandboxWithDeviceSelection({
-        USB: createMockUSBMultipleDevices(),
-        Vial: createMockVial(),
-        readline: mockReadline,
-        ...testState
-    }, ['lib/interactive_command.js']);
-
-    await sandbox.global.runInteractiveCommand({});
-
-    assert.isTrue(testState.consoleLogOutput.some(line =>
-        line.includes('Selected device 1')));
-});
-```
-
-**Using Spies for Call Tracking:**
-```javascript
-it('should call Vial methods in correct order', async () => {
-    const initSpy = createSpy();
-    const loadSpy = createSpy();
-    const pushSpy = createSpy();
-
-    const mockVial = createMockVial({}, {
-        init: initSpy,
-        load: loadSpy,
-        combo: { push: pushSpy }
-    });
-
-    sandbox = createSandboxWithDeviceSelection({
-        USB: createMockUSBSingleDevice(),
-        Vial: mockVial,
-        ...testState
-    }, ['lib/combo_add.js']);
-
-    await sandbox.global.runAddCombo('KC_A+KC_B KC_C', {});
-
-    assert.strictEqual(initSpy.callCount, 1);
-    assert.strictEqual(loadSpy.callCount, 1);
-    assert.strictEqual(pushSpy.callCount, 1);
-    assert.isTrue(initSpy.calls[0].length > 0); // Called with kbinfo reference
-});
-```
-
-#### Benefits of Test Helpers
-
-- **Consistency** - All tests use the same patterns and helpers
-- **Maintainability** - Changes to test infrastructure only need to be made in one place
-- **Readability** - Tests focus on business logic rather than setup boilerplate
-- **Reusability** - Common mock objects and patterns are easily shared
-- **Type Safety** - Better structure and validation of test state
-- **Debugging** - Built-in spy tracking and error simulation capabilities
+This guide covers:
+- Core helper functions and their usage
+- Recommended test patterns and structure
+- Mock object creation and configuration
+- Advanced testing scenarios (error handling, file operations, interactive prompts)
+- Assertion patterns and spy usage
+- Migration guidance for legacy test patterns
 
 ## Contributing
 

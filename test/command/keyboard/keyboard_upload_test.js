@@ -760,4 +760,157 @@ describe('keyboard_upload.js command tests', () => {
         assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
+
+    // --- .kbi File Tests ---
+
+    describe('.kbi file handling', () => {
+        it('should upload .kbi file with all sections successfully', async () => {
+            const kbiData = {
+                layers: 2, rows: 2, cols: 2,
+                keymap: [["KC_A", "KC_B", "KC_C", "KC_D"], ["KC_E", "KC_F", "KC_G", "KC_H"]],
+                macros: [{ mid: 0, actions: [['tap', 100]] }],
+                key_overrides: [{ koid: 0, trigger_key: 200, override_key: 201 }],
+                qmk_settings: { "brightness": 100, "rgb_effect": "solid" }
+            };
+            setupTestEnvironment({
+                mockKbinfoData: { layers: 2, rows: 2, cols: 2 },
+                fileConfig: { path: 'keyboard.kbi', content: JSON.stringify(kbiData) },
+                vialConfig: {
+                    hasMacroPush: true, hasKbSaveMacros: true,
+                    hasKeyOverridePush: true, hasKbSaveKeyOverrides: true,
+                    hasSetQmkSetting: true, hasKbSaveQmkSettings: true
+                }
+            });
+
+            await sandbox.global.runUploadFile("keyboard.kbi", {});
+
+            // Check keymap upload
+            assert.strictEqual(spyVialApiUpdateKeyCalls.length, 8);
+            assert.deepStrictEqual(spyKeyParseCalls, ["KC_A", "KC_B", "KC_C", "KC_D", "KC_E", "KC_F", "KC_G", "KC_H"]);
+
+            // Check macros upload
+            assert.isNotNull(spyVialMacroPush);
+            assert.deepStrictEqual(spyVialMacroPush.macros, kbiData.macros);
+            assert.strictEqual(spyVialKbSaveMacros, true);
+
+            // Check key overrides upload
+            assert.isNotNull(spyVialKeyOverridePush);
+            assert.deepStrictEqual(spyVialKeyOverridePush.key_overrides, kbiData.key_overrides);
+            assert.strictEqual(spyVialKbSaveKeyOverrides, true);
+
+            // Check QMK settings upload
+            assert.strictEqual(spyVialSetQmkSetting.length, 2);
+            assert.deepStrictEqual(spyVialSetQmkSetting, [
+                { name: "brightness", value: 100 },
+                { name: "rgb_effect", value: "solid" }
+            ]);
+            assert.strictEqual(spyVialKbSaveQmkSettings, true);
+
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes(".kbi content: succeeded")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
+        });
+
+        it('should handle .kbi file with only keymap', async () => {
+            const kbiData = {
+                layers: 1, rows: 1, cols: 2,
+                keymap: [["KC_A", "KC_B"]]
+            };
+            setupTestEnvironment({
+                mockKbinfoData: { layers: 1, rows: 1, cols: 2 },
+                fileConfig: { path: 'keymap_only.kbi', content: JSON.stringify(kbiData) },
+                vialConfig: {}
+            });
+
+            await sandbox.global.runUploadFile("keymap_only.kbi", {});
+
+            assert.strictEqual(spyVialApiUpdateKeyCalls.length, 2);
+            assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("Processed 1/1 sections from .kbi file")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
+        });
+
+        it('should handle .kbi file with no recognizable sections', async () => {
+            const kbiData = { layers: 2, rows: 2, cols: 2, some_other_field: "value" };
+            setupTestEnvironment({
+                fileConfig: { path: 'minimal.kbi', content: JSON.stringify(kbiData) },
+                vialConfig: {}
+            });
+
+            await sandbox.global.runUploadFile("minimal.kbi", {});
+
+            assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("No recognizable configuration sections found in .kbi file")));
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes(".kbi content: succeeded (Raw keyboard info applied")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
+        });
+
+        it('should handle partial success in .kbi file upload', async () => {
+            const kbiData = {
+                keymap: [["KC_A"]],
+                macros: [{ mid: 0, actions: [] }]
+            };
+            setupTestEnvironment({
+                mockKbinfoData: { layers: 1, rows: 1, cols: 1 },
+                fileConfig: { path: 'partial.kbi', content: JSON.stringify(kbiData) },
+                vialConfig: { hasMacroPush: true, macroPushThrows: true } // Macro upload will fail
+            });
+
+            await sandbox.global.runUploadFile("partial.kbi", {});
+
+            // Keymap should succeed, macros should fail
+            assert.strictEqual(spyVialApiUpdateKeyCalls.length, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Failed to upload macros from .kbi")));
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes(".kbi content: partial (1/2 sections succeeded)")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
+        });
+
+        it('should error for invalid JSON in .kbi file', async () => {
+            setupTestEnvironment({
+                fileConfig: { path: 'bad.kbi', content: 'not valid json' }
+            });
+
+            await sandbox.global.runUploadFile("bad.kbi", {});
+
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error parsing .kbi file JSON:")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
+        });
+
+        it('should handle error during .kbi processing', async () => {
+            const kbiData = { keymap: [["KC_A"]] };
+            setupTestEnvironment({
+                mockKbinfoData: { layers: 1, rows: 1, cols: 1 },
+                fileConfig: { path: 'error.kbi', content: JSON.stringify(kbiData) },
+                vialConfig: { updateKeyThrows: true }
+            });
+
+            await sandbox.global.runUploadFile("error.kbi", {});
+
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Failed to upload keymap from .kbi")));
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes(".kbi content: partial (0/1 sections succeeded)")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
+        });
+
+        it('should warn when .kbi has data but no upload functions available', async () => {
+            const kbiData = {
+                keymap: [["KC_A"]],
+                macros: [{ mid: 0, actions: [] }],
+                key_overrides: [{ koid: 0, trigger_key: 200, override_key: 201 }],
+                qmk_settings: { "brightness": 100 }
+            };
+            setupTestEnvironment({
+                fileConfig: { path: 'no_functions.kbi', content: JSON.stringify(kbiData) },
+                vialConfig: {} // No upload functions available
+            });
+
+            // Remove updateKey to simulate it not being available
+            mockVial.api = {};
+
+            await sandbox.global.runUploadFile("no_functions.kbi", {});
+
+            assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Keymap data found in .kbi but Vial.api.updateKey not available")));
+            assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Macro data found in .kbi but Vial.macro.push not available")));
+            assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Key override data found in .kbi but Vial.keyoverride.push not available")));
+            assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("QMK settings found in .kbi but no settings could be applied")));
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes(".kbi content: partial (0/4 sections succeeded)")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
+        });
+    });
 });

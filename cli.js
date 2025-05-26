@@ -101,17 +101,6 @@ const keyboardCmd = program.command('keyboard');
 keyboardCmd.description('Keyboard information and keymap operations');
 
 keyboardCmd
-  .command('info')
-  .description('Pull all available information from the connected keyboard.')
-  .option('-o, --output <filepath>', 'Specify output file for keyboard information (JSON)')
-  .action((options) => {
-    const getKeyboardInfoScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keyboard/keyboard_info.js'), 'utf8');
-    vm.runInContext(getKeyboardInfoScript, sandbox);
-    // The script exposes runGetKeyboardInfo on the global object in the sandbox
-    sandbox.global.runGetKeyboardInfo(options.output);
-  });
-
-keyboardCmd
   .command('get-keymap')
   .description('View keymap, optionally for a specific layer, and specify output format.')
   .option('-l, --layer <number>', 'Specify layer number to retrieve')
@@ -181,8 +170,8 @@ keyboardCmd
 
 keyboardCmd
   .command('upload <filepath>')
-  .description('Upload and apply a .vil (Vial keymap) or .svl (Svalboard/KeyBard full config) file to the keyboard.')
-  .addHelpText('after', '\nSupported file types: .vil, .svl')
+  .description('Upload and apply a keyboard configuration file to the keyboard.')
+  .addHelpText('after', '\nSupported file types:\n  .vil - Vial configuration file\n  .svl - Structured configuration file (keymap, macros, overrides, settings)\n  .kbi - Raw keyboard info file (all available data)')
   .action((filepath, options) => {
     const uploadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keyboard/keyboard_upload.js'), 'utf8');
     vm.runInContext(uploadFileScript, sandbox);
@@ -193,8 +182,8 @@ keyboardCmd
 
 keyboardCmd
   .command('download <filepath>')
-  .description('Download the current keyboard configuration (keymap, macros, overrides, settings) to an .svl file.')
-  .addHelpText('after', '\nOutput file must have an .svl extension.')
+  .description('Download the current keyboard configuration to a file.')
+  .addHelpText('after', '\nSupported file types:\n  .svl - Full configuration (keymap, macros, overrides, settings)\n  .kbi - Raw keyboard info (all available data)')
   .action((filepath, options) => {
     const downloadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keyboard/keyboard_download.js'), 'utf8');
     vm.runInContext(downloadFileScript, sandbox);
