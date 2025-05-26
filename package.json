@@ -4,7 +4,7 @@
   "description": "Commandline tool for accessing Vial keyboardsr",
   "main": "cli/cli.js",
   "scripts": {
-    "test": "mocha test/*_test.js"
+    "test": "mocha 'test/**/*_test.js'"
   },
   "author": "binduwavell",
   "dependencies": {

@@ -105,7 +105,7 @@ keyboardCmd
   .description('Pull all available information from the connected keyboard.')
   .option('-o, --output <filepath>', 'Specify output file for keyboard information (JSON)')
   .action((options) => {
-    const getKeyboardInfoScript = fs.readFileSync(path.resolve(__dirname, 'lib/keyboard_info.js'), 'utf8');
+    const getKeyboardInfoScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keyboard/keyboard_info.js'), 'utf8');
     vm.runInContext(getKeyboardInfoScript, sandbox);
     // The script exposes runGetKeyboardInfo on the global object in the sandbox
     sandbox.global.runGetKeyboardInfo(options.output);
@@ -118,7 +118,7 @@ keyboardCmd
   .option('-f, --format <format>', 'Specify output format (json or text)', 'json')
   .option('-o, --output <filepath>', 'Specify output file for keymap data')
   .action((options) => {
-    const getKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/keymap_get.js'), 'utf8');
+    const getKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keymap/keymap_get.js'), 'utf8');
     vm.runInContext(getKeymapScript, sandbox);
     // The script exposes runGetKeymap on the global object in the sandbox
     // process.exitCode will be set by runGetKeymap itself.
@@ -134,7 +134,7 @@ keyboardCmd
   .description('Set a specific key on the keymap at a given position index.')
   .option('-l, --layer <number>', 'Specify layer number (defaults to 0)', '0')
   .action((keyDefinition, positionIndex, options) => {
-    const setKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/keymap_set.js'), 'utf8');
+    const setKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keymap/keymap_set.js'), 'utf8');
     vm.runInContext(setKeymapScript, sandbox);
     // The script exposes runSetKeymapEntry on the global object in the sandbox
     // process.exitCode will be set by runSetKeymapEntry itself.
@@ -147,7 +147,7 @@ keyboardCmd
   .command('upload-keymap <filepath_json>')
   .description('Load a full keymap from a JSON file and apply it to the keyboard.')
   .action((filepathJson) => {
-    const uploadKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/keymap_upload.js'), 'utf8');
+    const uploadKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keymap/keymap_upload.js'), 'utf8');
     vm.runInContext(uploadKeymapScript, sandbox);
     // The script exposes runUploadKeymap on the global object in the sandbox
     // process.exitCode will be set by runUploadKeymap itself.
@@ -158,7 +158,7 @@ keyboardCmd
   .command('download-keymap <filepath_json>')
   .description('Save the current keyboard keymap to a file in JSON format.')
   .action((filepathJson) => {
-    const downloadKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/keymap_download.js'), 'utf8');
+    const downloadKeymapScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keymap/keymap_download.js'), 'utf8');
     vm.runInContext(downloadKeymapScript, sandbox);
     // The script exposes runDownloadKeymap on the global object in the sandbox
     // process.exitCode will be set by runDownloadKeymap itself.
@@ -184,7 +184,7 @@ keyboardCmd
   .description('Upload and apply a .vil (Vial keymap) or .svl (Svalboard/KeyBard full config) file to the keyboard.')
   .addHelpText('after', '\nSupported file types: .vil, .svl')
   .action((filepath, options) => {
-    const uploadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/keyboard_upload.js'), 'utf8');
+    const uploadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keyboard/keyboard_upload.js'), 'utf8');
     vm.runInContext(uploadFileScript, sandbox);
     // The script exposes runUploadFile on the global object in the sandbox
     // process.exitCode will be set by runUploadFile itself.
@@ -196,7 +196,7 @@ keyboardCmd
   .description('Download the current keyboard configuration (keymap, macros, overrides, settings) to an .svl file.')
   .addHelpText('after', '\nOutput file must have an .svl extension.')
   .action((filepath, options) => {
-    const downloadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/keyboard_download.js'), 'utf8');
+    const downloadFileScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/keyboard/keyboard_download.js'), 'utf8');
     vm.runInContext(downloadFileScript, sandbox);
     // The script exposes runDownloadFile on the global object in the sandbox
     // process.exitCode will be set by runDownloadFile itself.
@@ -215,7 +215,7 @@ macroCmd
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the macro list')
   .action((options) => {
-    const listMacrosScript = fs.readFileSync(path.resolve(__dirname, 'lib/macro_list.js'), 'utf8');
+    const listMacrosScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/macro/macro_list.js'), 'utf8');
     vm.runInContext(listMacrosScript, sandbox);
     // The script exposes runListMacros on the global object in the sandbox
     // process.exitCode will be set by runListMacros itself.
@@ -231,7 +231,7 @@ macroCmd
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the macro data')
   .action((id, options) => {
-    const getMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/macro_get.js'), 'utf8');
+    const getMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/macro/macro_get.js'), 'utf8');
     vm.runInContext(getMacroScript, sandbox);
     // The script exposes runGetMacro on the global object in the sandbox
     // process.exitCode will be set by runGetMacro itself.
@@ -245,7 +245,7 @@ macroCmd
   .command('add <sequence_definition>')
   .description('Add a new macro with a sequence definition string (e.g., "KC_A,DELAY(100),LCTL(KC_C)").')
   .action((sequenceDefinition, options) => {
-    const addMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/macro_add.js'), 'utf8');
+    const addMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/macro/macro_add.js'), 'utf8');
     vm.runInContext(addMacroScript, sandbox);
     // The script exposes runAddMacro on the global object in the sandbox
     // process.exitCode will be set by runAddMacro itself.
@@ -256,7 +256,7 @@ macroCmd
   .command('edit <id> <new_sequence_definition>')
   .description('Edit an existing macro by its ID with a new sequence definition.')
   .action((id, newSequenceDefinition, options) => {
-    const editMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/macro_edit.js'), 'utf8');
+    const editMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/macro/macro_edit.js'), 'utf8');
     vm.runInContext(editMacroScript, sandbox);
     // The script exposes runEditMacro on the global object in the sandbox
     // process.exitCode will be set by runEditMacro itself.
@@ -267,7 +267,7 @@ macroCmd
   .command('delete <id>')
   .description('Delete a macro by its ID (clears its actions).')
   .action((id, options) => { // options might be used later if flags are added
-    const deleteMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/macro_delete.js'), 'utf8');
+    const deleteMacroScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/macro/macro_delete.js'), 'utf8');
     vm.runInContext(deleteMacroScript, sandbox);
     // The script exposes runDeleteMacro on the global object in the sandbox
     // process.exitCode will be set by runDeleteMacro itself.
@@ -284,7 +284,7 @@ tapdanceCmd
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the tapdance list')
   .action((options) => {
-    const listTapdancesScript = fs.readFileSync(path.resolve(__dirname, 'lib/tapdance_list.js'), 'utf8');
+    const listTapdancesScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/tapdance/tapdance_list.js'), 'utf8');
     vm.runInContext(listTapdancesScript, sandbox);
     // The script exposes runListTapdances on the global object in the sandbox
     // process.exitCode will be set by runListTapdances itself.
@@ -300,7 +300,7 @@ tapdanceCmd
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the tapdance data')
   .action((id, options) => {
-    const getTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/tapdance_get.js'), 'utf8');
+    const getTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/tapdance/tapdance_get.js'), 'utf8');
     vm.runInContext(getTapdanceScript, sandbox);
     // The script exposes runGetTapdance on the global object in the sandbox
     // process.exitCode will be set by runGetTapdance itself.
@@ -314,7 +314,7 @@ tapdanceCmd
   .command('add <sequence_definition>')
   .description('Add a new tapdance with a sequence definition string (e.g., "TAP(KC_A),TERM(200)").')
   .action((sequenceDefinition, options) => {
-    const addTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/tapdance_add.js'), 'utf8');
+    const addTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/tapdance/tapdance_add.js'), 'utf8');
     vm.runInContext(addTapdanceScript, sandbox);
     // The script exposes runAddTapdance on the global object in the sandbox
     // process.exitCode will be set by runAddTapdance itself.
@@ -325,7 +325,7 @@ tapdanceCmd
   .command('edit <id> <new_sequence_definition>')
   .description('Edit an existing tapdance by its ID with a new sequence definition.')
   .action((id, newSequenceDefinition, options) => {
-    const editTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/tapdance_edit.js'), 'utf8');
+    const editTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/tapdance/tapdance_edit.js'), 'utf8');
     vm.runInContext(editTapdanceScript, sandbox);
     // The script exposes runEditTapdance on the global object in the sandbox
     // process.exitCode will be set by runEditTapdance itself.
@@ -336,7 +336,7 @@ tapdanceCmd
   .command('delete <id>')
   .description('Delete a tapdance by its ID (clears its actions and sets term to 0).')
   .action((id, options) => { // options for future use
-    const deleteTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/tapdance_delete.js'), 'utf8');
+    const deleteTapdanceScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/tapdance/tapdance_delete.js'), 'utf8');
     vm.runInContext(deleteTapdanceScript, sandbox);
     // The script exposes runDeleteTapdance on the global object in the sandbox
     // process.exitCode will be set by runDeleteTapdance itself.
@@ -353,7 +353,7 @@ comboCmd
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the combo list')
   .action((options) => {
-    const listCombosScript = fs.readFileSync(path.resolve(__dirname, 'lib/combo_list.js'), 'utf8');
+    const listCombosScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/combo/combo_list.js'), 'utf8');
     vm.runInContext(listCombosScript, sandbox);
     // The script exposes runListCombos on the global object in the sandbox
     // process.exitCode will be set by runListCombos itself.
@@ -369,7 +369,7 @@ comboCmd
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the combo data')
   .action((id, options) => {
-    const getComboScript = fs.readFileSync(path.resolve(__dirname, 'lib/combo_get.js'), 'utf8');
+    const getComboScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/combo/combo_get.js'), 'utf8');
     vm.runInContext(getComboScript, sandbox);
     // The script exposes runGetCombo on the global object in the sandbox
     // process.exitCode will be set by runGetCombo itself.
@@ -384,7 +384,7 @@ comboCmd
   .description('Add a new combo (e.g., "KC_A+KC_S KC_D"). Trigger keys separated by "+", then space, then action key.')
   .option('-t, --term <milliseconds>', 'Set combo term/timeout in milliseconds (e.g., 50).')
   .action((definitionString, options) => {
-    const addComboScript = fs.readFileSync(path.resolve(__dirname, 'lib/combo_add.js'), 'utf8');
+    const addComboScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/combo/combo_add.js'), 'utf8');
     vm.runInContext(addComboScript, sandbox);
     // The script exposes runAddCombo on the global object in the sandbox
     // process.exitCode will be set by runAddCombo itself.
@@ -396,7 +396,7 @@ comboCmd
   .description('Edit an existing combo by its ID (e.g., "KC_X+KC_Y KC_Z").')
   .option('-t, --term <milliseconds>', 'Set new combo term/timeout in milliseconds.')
   .action((id, newDefinitionString, options) => {
-    const editComboScript = fs.readFileSync(path.resolve(__dirname, 'lib/combo_edit.js'), 'utf8');
+    const editComboScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/combo/combo_edit.js'), 'utf8');
     vm.runInContext(editComboScript, sandbox);
     // The script exposes runEditCombo on the global object in the sandbox
     // process.exitCode will be set by runEditCombo itself.
@@ -407,7 +407,7 @@ comboCmd
   .command('delete <id>')
   .description('Delete a combo by its ID (disables it and clears keys/term).')
   .action((id, options) => { // options for future use, if any
-    const deleteComboScript = fs.readFileSync(path.resolve(__dirname, 'lib/combo_delete.js'), 'utf8');
+    const deleteComboScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/combo/combo_delete.js'), 'utf8');
     vm.runInContext(deleteComboScript, sandbox);
     // The script exposes runDeleteCombo on the global object in the sandbox
     // process.exitCode will be set by runDeleteCombo itself.
@@ -424,7 +424,7 @@ keyOverrideCmd
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the key override list')
   .action((options) => {
-    const listKeyOverridesScript = fs.readFileSync(path.resolve(__dirname, 'lib/key_override_list.js'), 'utf8');
+    const listKeyOverridesScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/key_override/key_override_list.js'), 'utf8');
     vm.runInContext(listKeyOverridesScript, sandbox);
     // The script exposes runListKeyOverrides on the global object in the sandbox
     // process.exitCode will be set by runListKeyOverrides itself.
@@ -440,7 +440,7 @@ keyOverrideCmd
   .option('-f, --format <format>', 'Specify output format (json or text)', 'text')
   .option('-o, --output <filepath>', 'Specify output file for the key override data')
   .action((id, options) => {
-    const getKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/key_override_get.js'), 'utf8');
+    const getKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/key_override/key_override_get.js'), 'utf8');
     vm.runInContext(getKeyOverrideScript, sandbox);
     // The script exposes runGetKeyOverride on the global object in the sandbox
     // process.exitCode will be set by runGetKeyOverride itself.
@@ -455,7 +455,7 @@ keyOverrideCmd
   .description('Add a new key override (e.g., "KC_A KC_B" to make KC_A behave as KC_B).')
   // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
   .action((triggerKeyString, overrideKeyString, options) => {
-    const addKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/key_override_add.js'), 'utf8');
+    const addKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/key_override/key_override_add.js'), 'utf8');
     vm.runInContext(addKeyOverrideScript, sandbox);
     // The script exposes runAddKeyOverride on the global object in the sandbox
     // process.exitCode will be set by runAddKeyOverride itself.
@@ -467,7 +467,7 @@ keyOverrideCmd
   .description('Edit an existing key override by ID (e.g., "0 KC_B KC_C" to change override 0 to KC_B -> KC_C).')
   // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
   .action((id, newTriggerKeyString, newOverrideKeyString, options) => {
-    const editKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/key_override_edit.js'), 'utf8');
+    const editKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/key_override/key_override_edit.js'), 'utf8');
     vm.runInContext(editKeyOverrideScript, sandbox);
     // The script exposes runEditKeyOverride on the global object in the sandbox
     // process.exitCode will be set by runEditKeyOverride itself.
@@ -478,7 +478,7 @@ keyOverrideCmd
   .command('delete <id>')
   .description('Delete a key override by its ID (e.g., "0" to delete override 0). This sets its keys to 0.')
   .action((id, options) => { // options for future use, if any
-    const deleteKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/key_override_delete.js'), 'utf8');
+    const deleteKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/key_override/key_override_delete.js'), 'utf8');
     vm.runInContext(deleteKeyOverrideScript, sandbox);
     // The script exposes runDeleteKeyOverride on the global object in the sandbox
     // process.exitCode will be set by runDeleteKeyOverride itself.
@@ -494,7 +494,7 @@ qmkSettingCmd
   .description('List all available QMK settings and their current values from the keyboard.')
   .option('-o, --output-file <filepath>', 'Save settings as JSON to a file.')
   .action((options) => {
-    const listQmkSettingsScript = fs.readFileSync(path.resolve(__dirname, 'lib/qmk_setting_list.js'), 'utf8');
+    const listQmkSettingsScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/qmk_setting/qmk_setting_list.js'), 'utf8');
     vm.runInContext(listQmkSettingsScript, sandbox);
     // The script exposes runListQmkSettings on the global object in the sandbox
     // process.exitCode will be set by runListQmkSettings itself.
@@ -507,7 +507,7 @@ qmkSettingCmd
   .description('View a specific QMK setting by its name from the keyboard.')
   // .option('-o, --output <filepath>', 'Specify output file for the setting (e.g., JSON)') // Future option
   .action((settingName, options) => {
-    const getQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/qmk_setting_get.js'), 'utf8');
+    const getQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/qmk_setting/qmk_setting_get.js'), 'utf8');
     vm.runInContext(getQmkSettingScript, sandbox);
     // The script exposes runGetQmkSetting on the global object in the sandbox
     // process.exitCode will be set by runGetQmkSetting itself.
@@ -519,7 +519,7 @@ qmkSettingCmd
   .description('Change a QMK setting on the keyboard by its name and new value.')
   .addHelpText('after', '\nExamples:\n  keybard-cli qmk-setting set TapToggleEnable true\n  keybard-cli qmk-setting set MaxTapTime 200\n  keybard-cli qmk-setting set UserFullName "John Doe"')
   .action((settingName, value, options) => {
-    const setQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/qmk_setting_set.js'), 'utf8');
+    const setQmkSettingScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/qmk_setting/qmk_setting_set.js'), 'utf8');
     vm.runInContext(setQmkSettingScript, sandbox);
     // The script exposes runSetQmkSetting on the global object in the sandbox
     // process.exitCode will be set by runSetQmkSetting itself.

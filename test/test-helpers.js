@@ -18,6 +18,72 @@ function loadScriptInContext(scriptPath, context) {
 }
 
 /**
+ * Create a basic VM sandbox context without device selection
+ * @param {Object} customObjects - Custom objects to add to the sandbox
+ * @param {Object} customObjects.USB - Mock USB object for device communication
+ * @param {Object} customObjects.Vial - Mock Vial object for keyboard operations
+ * @param {Object} customObjects.KEY - Mock KEY object for key parsing/stringifying
+ * @param {Object} customObjects.fs - Mock file system object
+ * @param {Array} customObjects.consoleLogOutput - Array to capture console.log output
+ * @param {Array} customObjects.consoleErrorOutput - Array to capture console.error output
+ * @param {Array} customObjects.consoleWarnOutput - Array to capture console.warn output
+ * @param {Array} customObjects.consoleInfoOutput - Array to capture console.info output
+ * @param {number|undefined} customObjects.mockProcessExitCode - Current process exit code
+ * @param {Function} customObjects.setMockProcessExitCode - Function to set process exit code
+ * @param {Object} customObjects.console - Custom console object (overrides default)
+ * @param {Array<string>} scriptPaths - Array of script paths to load into the sandbox
+ * @returns {Object} VM context sandbox without device selection capabilities
+ * @example
+ * const sandbox = createBasicSandbox({
+ *   USB: createMockUSBSingleDevice(),
+ *   Vial: createMockVial(),
+ *   ...createTestState()
+ * }, ['lib/my_utility.js']);
+ */
+function createBasicSandbox(customObjects = {}, scriptPaths = []) {
+    // Create a shared state object for process exit code
+    const sharedState = {
+        exitCode: customObjects.mockProcessExitCode
+    };
+
+    const sandbox = vm.createContext({
+        // Default objects that most tests need
+        console: customObjects.console || {
+            log: (...args) => (customObjects.consoleLogOutput || []).push(args.join(' ')),
+            error: (...args) => (customObjects.consoleErrorOutput || []).push(args.join(' ')),
+            warn: (...args) => (customObjects.consoleWarnOutput || customObjects.consoleErrorOutput || []).push(args.join(' ')),
+            info: (...args) => (customObjects.consoleInfoOutput || customObjects.consoleErrorOutput || []).push(args.join(' ')),
+        },
+        global: {},
+        require: require,
+        process: {
+            get exitCode() { return sharedState.exitCode; },
+            set exitCode(val) {
+                sharedState.exitCode = val;
+                if (customObjects.setMockProcessExitCode) {
+                    customObjects.setMockProcessExitCode(val);
+                }
+            }
+        },
+        debug: () => () => {}, // Mock debug function
+
+        // Merge in custom objects (excluding the special ones we handle above)
+        ...Object.fromEntries(
+            Object.entries(customObjects).filter(([key]) =>
+                !['consoleLogOutput', 'consoleErrorOutput', 'consoleWarnOutput', 'consoleInfoOutput', 'mockProcessExitCode', 'setMockProcessExitCode', 'console'].includes(key)
+            )
+        )
+    });
+
+    // Load scripts
+    scriptPaths.forEach(scriptPath => {
+        loadScriptInContext(scriptPath, sandbox);
+    });
+
+    return sandbox;
+}
+
+/**
  * Create a basic sandbox context with device selection support
  * @param {Object} customObjects - Custom objects to add to the sandbox
  * @param {Object} customObjects.USB - Mock USB object for device communication
@@ -148,72 +214,6 @@ function createMockUSBNoDevices() {
         close: () => {},
         device: null
     };
-}
-
-/**
- * Create a basic VM sandbox context without device selection
- * @param {Object} customObjects - Custom objects to add to the sandbox
- * @param {Object} customObjects.USB - Mock USB object for device communication
- * @param {Object} customObjects.Vial - Mock Vial object for keyboard operations
- * @param {Object} customObjects.KEY - Mock KEY object for key parsing/stringifying
- * @param {Object} customObjects.fs - Mock file system object
- * @param {Array} customObjects.consoleLogOutput - Array to capture console.log output
- * @param {Array} customObjects.consoleErrorOutput - Array to capture console.error output
- * @param {Array} customObjects.consoleWarnOutput - Array to capture console.warn output
- * @param {Array} customObjects.consoleInfoOutput - Array to capture console.info output
- * @param {number|undefined} customObjects.mockProcessExitCode - Current process exit code
- * @param {Function} customObjects.setMockProcessExitCode - Function to set process exit code
- * @param {Object} customObjects.console - Custom console object (overrides default)
- * @param {Array<string>} scriptPaths - Array of script paths to load into the sandbox
- * @returns {Object} VM context sandbox without device selection capabilities
- * @example
- * const sandbox = createBasicSandbox({
- *   USB: createMockUSBSingleDevice(),
- *   Vial: createMockVial(),
- *   ...createTestState()
- * }, ['lib/my_utility.js']);
- */
-function createBasicSandbox(customObjects = {}, scriptPaths = []) {
-    // Create a shared state object for process exit code
-    const sharedState = {
-        exitCode: customObjects.mockProcessExitCode
-    };
-
-    const sandbox = vm.createContext({
-        // Default objects that most tests need
-        console: customObjects.console || {
-            log: (...args) => (customObjects.consoleLogOutput || []).push(args.join(' ')),
-            error: (...args) => (customObjects.consoleErrorOutput || []).push(args.join(' ')),
-            warn: (...args) => (customObjects.consoleWarnOutput || customObjects.consoleErrorOutput || []).push(args.join(' ')),
-            info: (...args) => (customObjects.consoleInfoOutput || customObjects.consoleErrorOutput || []).push(args.join(' ')),
-        },
-        global: {},
-        require: require,
-        process: {
-            get exitCode() { return sharedState.exitCode; },
-            set exitCode(val) {
-                sharedState.exitCode = val;
-                if (customObjects.setMockProcessExitCode) {
-                    customObjects.setMockProcessExitCode(val);
-                }
-            }
-        },
-        debug: () => () => {}, // Mock debug function
-
-        // Merge in custom objects (excluding the special ones we handle above)
-        ...Object.fromEntries(
-            Object.entries(customObjects).filter(([key]) =>
-                !['consoleLogOutput', 'consoleErrorOutput', 'consoleWarnOutput', 'consoleInfoOutput', 'mockProcessExitCode', 'setMockProcessExitCode', 'console'].includes(key)
-            )
-        )
-    });
-
-    // Load scripts
-    scriptPaths.forEach(scriptPath => {
-        loadScriptInContext(scriptPath, sandbox);
-    });
-
-    return sandbox;
 }
 
 /**
