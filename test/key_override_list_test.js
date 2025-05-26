@@ -1,6 +1,6 @@
 // test/test_list_key_overrides.js
 const { assert } = require('chai');
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 describe('key_overrides_list.js command tests', () => {
     let sandbox;
@@ -8,9 +8,7 @@ describe('key_overrides_list.js command tests', () => {
     let mockVial;
     let mockKey;
     let mockFs;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Mock implementation for KEY.stringify
     function mockKeyStringifyImplementation(keycode) {
@@ -58,9 +56,7 @@ describe('key_overrides_list.js command tests', () => {
         };
         mockFs = { ...defaultFsMethods, ...fsMethodOverrides };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -68,10 +64,10 @@ describe('key_overrides_list.js command tests', () => {
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/key_override_list.js']);
     }
 
@@ -90,10 +86,10 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.strictEqual(mockProcessExitCode, 0);
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Found 2 active key override(s) (total slots: 16):')));
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D')));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Found 2 active key override(s) (total slots: 16):')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D')));
     });
 
     it('should list key overrides in JSON format to console', async () => {
@@ -104,8 +100,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'json' });
 
-        assert.strictEqual(mockProcessExitCode, 0);
-        const jsonOutput = consoleLogOutput.join(' ');
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+        const jsonOutput = testState.consoleLogOutput.join(' ');
         const parsedOutput = JSON.parse(jsonOutput);
         assert.isArray(parsedOutput);
         assert.strictEqual(parsedOutput.length, 1);
@@ -125,9 +121,9 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.strictEqual(mockProcessExitCode, 0);
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D')));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D')));
     });
 
     it('should sort key overrides by ID for consistent output', async () => {
@@ -140,14 +136,14 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        const output = consoleLogOutput.join('\n');
+        const output = testState.consoleLogOutput.join('\n');
         const override0Index = output.indexOf('Override 0: KC_A -> KC_B');
         const override1Index = output.indexOf('Override 1: KC_Z -> KC_CAPS');
         const override2Index = output.indexOf('Override 2: KC_C -> KC_D');
 
         assert.isTrue(override0Index < override1Index);
         assert.isTrue(override1Index < override2Index);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should write key overrides to file in text format', async () => {
@@ -163,8 +159,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text', outputFile: '/tmp/test.txt' });
 
-        assert.strictEqual(mockProcessExitCode, 0);
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Key override list written to /tmp/test.txt')));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Key override list written to /tmp/test.txt')));
         assert.isTrue(writtenContent.includes('Found 1 active key override(s)'));
         assert.isTrue(writtenContent.includes('Override 0: KC_A -> KC_B'));
     });
@@ -182,8 +178,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'json', outputFile: '/tmp/test.json' });
 
-        assert.strictEqual(mockProcessExitCode, 0);
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Key override list written to /tmp/test.json')));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Key override list written to /tmp/test.json')));
         const parsedContent = JSON.parse(writtenContent);
         assert.isArray(parsedContent);
         assert.strictEqual(parsedContent[0].trigger_key_str, 'KC_A');
@@ -194,8 +190,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.strictEqual(mockProcessExitCode, 0);
-        assert.isTrue(consoleLogOutput.some(line => line.includes('No key overrides defined on this keyboard.')));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('No key overrides defined on this keyboard.')));
     });
 
     it('should output empty JSON array when no key overrides exist', async () => {
@@ -203,8 +199,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'json' });
 
-        assert.strictEqual(mockProcessExitCode, 0);
-        const jsonOutput = consoleLogOutput.join(' ');
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+        const jsonOutput = testState.consoleLogOutput.join(' ');
         const parsedOutput = JSON.parse(jsonOutput);
         assert.isArray(parsedOutput);
         assert.strictEqual(parsedOutput.length, 0);
@@ -218,8 +214,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'JSON' }); // Uppercase
 
-        assert.strictEqual(mockProcessExitCode, 0);
-        const jsonOutput = consoleLogOutput.join(' ');
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+        const jsonOutput = testState.consoleLogOutput.join(' ');
         const parsedOutput = JSON.parse(jsonOutput);
         assert.isArray(parsedOutput);
         assert.strictEqual(parsedOutput[0].trigger_key_str, 'KC_A');
@@ -233,9 +229,9 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'unknown' });
 
-        assert.strictEqual(mockProcessExitCode, 0);
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Found 1 active key override(s)')));
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Found 1 active key override(s)')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
     });
 
     // --- Sad Path Tests ---
@@ -246,8 +242,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
@@ -257,21 +253,19 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if required objects not found in sandbox', async () => {
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        const localTestState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             // Missing USB, Vial, etc.
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: localTestState.consoleLogOutput,
+            consoleErrorOutput: localTestState.consoleErrorOutput,
+            mockProcessExitCode: localTestState.mockProcessExitCode,
+            setMockProcessExitCode: localTestState.setMockProcessExitCode
         }, ['lib/key_override_list.js']);
 
         // Check if the function was exposed despite missing objects
@@ -279,8 +273,8 @@ describe('key_overrides_list.js command tests', () => {
             try {
                 await sandbox.global.runListKeyOverrides({ format: 'text' });
                 assert.isTrue(
-                    consoleErrorOutput.some(line => line.includes("Error: Required objects (USB, Vial, KEY, fs, runInitializers) not found in sandbox.")) ||
-                    mockProcessExitCode === 1
+                    localTestState.consoleErrorOutput.some(line => line.includes("Error: Required objects (USB, Vial, KEY, fs, runInitializers) not found in sandbox.")) ||
+                    localTestState.mockProcessExitCode === 1
                 );
             } catch (error) {
                 // ReferenceError is also acceptable since USB is not defined
@@ -302,8 +296,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Key override data (key_override_count or key_overrides array) not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Key override data (key_override_count or key_overrides array) not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if key_override_count is undefined', async () => {
@@ -317,8 +311,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Key override data (key_override_count or key_overrides array) not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Key override data (key_override_count or key_overrides array) not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if key_overrides array is missing', async () => {
@@ -332,8 +326,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Key override data (key_override_count or key_overrides array) not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Key override data (key_override_count or key_overrides array) not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error and fallback to console if file write fails', async () => {
@@ -348,10 +342,10 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text', outputFile: '/invalid/path.txt' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error writing key override list to file "/invalid/path.txt": Permission denied')));
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Key Override List (fallback due to file write error):')));
-        assert.isTrue(consoleLogOutput.some(line => line.includes('Found 1 active key override(s)')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error writing key override list to file "/invalid/path.txt": Permission denied')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Key Override List (fallback due to file write error):')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Found 1 active key override(s)')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should not show fallback for "No key overrides defined" when file write fails', async () => {
@@ -363,9 +357,9 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text', outputFile: '/invalid/path.txt' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error writing key override list to file "/invalid/path.txt": Permission denied')));
-        assert.isFalse(consoleLogOutput.some(line => line.includes('Key Override List (fallback due to file write error):')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error writing key override list to file "/invalid/path.txt": Permission denied')));
+        assert.isFalse(testState.consoleLogOutput.some(line => line.includes('Key Override List (fallback due to file write error):')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.init', async () => {
@@ -375,8 +369,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Init Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Init Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.load', async () => {
@@ -386,8 +380,8 @@ describe('key_overrides_list.js command tests', () => {
 
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Load Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Load Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should close USB device on error', async () => {
@@ -400,6 +394,6 @@ describe('key_overrides_list.js command tests', () => {
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
         assert.isTrue(usbClosed);
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

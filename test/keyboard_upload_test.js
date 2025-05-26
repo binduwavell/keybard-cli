@@ -1,6 +1,6 @@
 // test/test_upload_file.js
 const { assert } = require('chai');
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 describe('keyboard_upload.js command tests', () => {
     let sandbox;
@@ -9,12 +9,9 @@ describe('keyboard_upload.js command tests', () => {
     let mockFs;
     let mockPath;
     let mockKey;
-
-    let consoleLogOutput;
-    let consoleErrorOutput;
+    let testState;
     let consoleInfoOutput;
     let consoleWarnOutput;
-    let mockProcessExitCode;
 
     // Spies
     let spyFsReadFileSync;
@@ -214,11 +211,9 @@ describe('keyboard_upload.js command tests', () => {
             };
         }
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
+        testState = createTestState();
         consoleInfoOutput = [];
         consoleWarnOutput = [];
-        mockProcessExitCode = undefined;
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -228,15 +223,15 @@ describe('keyboard_upload.js command tests', () => {
             path: mockPath,
             runInitializers: () => {},
             console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
+                log: (...args) => testState.consoleLogOutput.push(args.join(' ')),
+                error: (...args) => testState.consoleErrorOutput.push(args.join(' ')),
                 warn: (...args) => consoleWarnOutput.push(args.join(' ')),
                 info: (...args) => consoleInfoOutput.push(args.join(' ')),
             },
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/keyboard_upload.js']);
     }
 
@@ -248,8 +243,8 @@ describe('keyboard_upload.js command tests', () => {
 
     it('should error if filepath is missing', async () => {
         await sandbox.global.runUploadFile(null, {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Filepath must be provided")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Filepath must be provided")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if file read fails', async () => {
@@ -257,8 +252,8 @@ describe('keyboard_upload.js command tests', () => {
             fileConfig: { path: 'test.svl', content: '{}', readError: new Error("Permission denied") }
         });
         await sandbox.global.runUploadFile("test.svl", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error reading file "test.svl": Permission denied')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error reading file "test.svl": Permission denied')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for unsupported file extension', async () => {
@@ -266,8 +261,8 @@ describe('keyboard_upload.js command tests', () => {
             fileConfig: { path: 'config.txt', content: 'data' }
         });
         await sandbox.global.runUploadFile("config.txt", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Unsupported file type ".txt"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Unsupported file type ".txt"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for invalid JSON in .svl file', async () => {
@@ -275,8 +270,8 @@ describe('keyboard_upload.js command tests', () => {
             fileConfig: { path: 'bad.svl', content: 'not valid json' }
         });
         await sandbox.global.runUploadFile("bad.svl", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error parsing .svl file JSON:")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error parsing .svl file JSON:")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
@@ -284,8 +279,8 @@ describe('keyboard_upload.js command tests', () => {
             usbConfig: { overrides: { list: () => [] } }
         });
         await sandbox.global.runUploadFile("test.svl", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
@@ -293,21 +288,19 @@ describe('keyboard_upload.js command tests', () => {
         // Mock the openDeviceConnection to fail
         sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runUploadFile("test.svl", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if required objects not found in sandbox', async () => {
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        const localTestState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             // Missing USB, Vial, etc.
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: localTestState.consoleLogOutput,
+            consoleErrorOutput: localTestState.consoleErrorOutput,
+            mockProcessExitCode: localTestState.mockProcessExitCode,
+            setMockProcessExitCode: localTestState.setMockProcessExitCode
         }, ['lib/keyboard_upload.js']);
 
         try {
@@ -316,8 +309,8 @@ describe('keyboard_upload.js command tests', () => {
                 try {
                     await sandbox.global.runUploadFile("test.svl", {});
                     assert.isTrue(
-                        consoleErrorOutput.some(line => line.includes("Error: Required objects (USB, Vial, fs, KEY, runInitializers) not found in sandbox.")) ||
-                        mockProcessExitCode === 1
+                        localTestState.consoleErrorOutput.some(line => line.includes("Error: Required objects (USB, Vial, fs, KEY, runInitializers) not found in sandbox.")) ||
+                        localTestState.mockProcessExitCode === 1
                     );
                 } catch (error) {
                     // ReferenceError is also acceptable since USB is not defined
@@ -339,8 +332,8 @@ describe('keyboard_upload.js command tests', () => {
             vialConfig: { initThrows: true }
         });
         await sandbox.global.runUploadFile("test.svl", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during upload: Simulated Vial.init error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("An unexpected error occurred during upload: Simulated Vial.init error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.load', async () => {
@@ -348,8 +341,8 @@ describe('keyboard_upload.js command tests', () => {
             vialConfig: { loadThrows: true }
         });
         await sandbox.global.runUploadFile("test.svl", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during upload: Simulated Vial.load error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("An unexpected error occurred during upload: Simulated Vial.load error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     // --- .vil File Tests ---
@@ -368,7 +361,7 @@ describe('keyboard_upload.js command tests', () => {
             assert.strictEqual(spyVialKbSave, true);
             assert.isTrue(consoleInfoOutput.some(line => line.includes("Vial.applyVilData called.")));
             assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should upload .vil file using Vial.keymap.applyVil as fallback', async () => {
@@ -383,7 +376,7 @@ describe('keyboard_upload.js command tests', () => {
             assert.strictEqual(spyVialKeymapApplyVil, vilContent);
             assert.strictEqual(spyVialKbSave, true);
             assert.isTrue(consoleInfoOutput.some(line => line.includes("Vial.keymap.applyVil called.")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should error if no .vil apply function is available', async () => {
@@ -394,9 +387,9 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("keymap.vil", {});
 
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("File upload process completed with one or more errors")));
-            assert.isTrue(consoleLogOutput.some(line => line.includes(".vil content: failed (.vil upload may not be supported")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("File upload process completed with one or more errors")));
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes(".vil content: failed (.vil upload may not be supported")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
 
         it('should warn if .vil applied but no save function found', async () => {
@@ -408,8 +401,8 @@ describe('keyboard_upload.js command tests', () => {
             await sandbox.global.runUploadFile("keymap.vil", {});
 
             assert.strictEqual(spyVialApplyVilData, 'data');
-            assert.isTrue(consoleLogOutput.some(line => line.includes('.vil content: warning (Applied but no keymap save function found.)')));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes('.vil content: warning (Applied but no keymap save function found.)')));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should handle error during Vial.applyVilData', async () => {
@@ -420,8 +413,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("keymap.vil", {});
 
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during upload: Simulated applyVilData error")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("An unexpected error occurred during upload: Simulated applyVilData error")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
     });
 
@@ -453,8 +446,8 @@ describe('keyboard_upload.js command tests', () => {
             ];
             assert.deepStrictEqual(spyVialApiUpdateKeyCalls, expectedCalls);
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: succeeded")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("keymap: succeeded")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should fail keymap upload if layer count mismatches', async () => {
@@ -467,8 +460,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: failed (Layer count mismatch")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("keymap: failed (Layer count mismatch")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
 
         it('should fail keymap upload if keycode string is invalid', async () => {
@@ -481,8 +474,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes('keymap: failed (Invalid keycode string in keymap: "KC_INVALID")')));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes('keymap: failed (Invalid keycode string in keymap: "KC_INVALID")')));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
 
         it('should succeed keymap upload with updateKey (no separate save needed)', async () => {
@@ -496,8 +489,8 @@ describe('keyboard_upload.js command tests', () => {
             await sandbox.global.runUploadFile("test.svl", {});
 
             assert.strictEqual(spyVialApiUpdateKeyCalls.length, 1);
-            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: succeeded")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("keymap: succeeded")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should skip keymap if updateKey not available', async () => {
@@ -512,8 +505,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: skipped (Vial.api.updateKey not available.)")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("keymap: skipped (Vial.api.updateKey not available.)")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should handle error during updateKey', async () => {
@@ -526,8 +519,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: failed (Simulated updateKey error)")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("keymap: failed (Simulated updateKey error)")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
     });
 
@@ -544,8 +537,8 @@ describe('keyboard_upload.js command tests', () => {
             assert.isNotNull(spyVialMacroPush);
             assert.deepStrictEqual(spyVialMacroPush.macros, svlData.macros);
             assert.strictEqual(spyVialKbSaveMacros, true);
-            assert.isTrue(consoleLogOutput.some(line => line.includes("macros: succeeded")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("macros: succeeded")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should skip macros if push or save not available', async () => {
@@ -557,8 +550,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("macros: skipped (Vial.macro.push or Vial.kb.saveMacros not available.)")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("macros: skipped (Vial.macro.push or Vial.kb.saveMacros not available.)")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should handle error during macro.push', async () => {
@@ -570,8 +563,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("macros: failed (Simulated macro.push error)")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("macros: failed (Simulated macro.push error)")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
     });
 
@@ -588,8 +581,8 @@ describe('keyboard_upload.js command tests', () => {
             assert.isNotNull(spyVialKeyOverridePush);
             assert.deepStrictEqual(spyVialKeyOverridePush.key_overrides, svlData.key_overrides);
             assert.strictEqual(spyVialKbSaveKeyOverrides, true);
-            assert.isTrue(consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should use generic save if saveKeyOverrides not available', async () => {
@@ -602,8 +595,8 @@ describe('keyboard_upload.js command tests', () => {
             await sandbox.global.runUploadFile("test.svl", {});
 
             assert.strictEqual(spyVialKbSave, true);
-            assert.isTrue(consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should skip key_overrides if push not available', async () => {
@@ -615,8 +608,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("key_overrides: skipped (Vial.keyoverride.push or Vial.kb not available.)")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("key_overrides: skipped (Vial.keyoverride.push or Vial.kb not available.)")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
     });
 
@@ -638,8 +631,8 @@ describe('keyboard_upload.js command tests', () => {
                 "setting3": "existing"
             });
             assert.strictEqual(spyVialKbSaveQmkSettings, true);
-            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 2 applied, 0 failed/skipped.")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("qmk_settings: 2 applied, 0 failed/skipped.")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should upload settings using individual set methods', async () => {
@@ -655,8 +648,8 @@ describe('keyboard_upload.js command tests', () => {
             assert.isTrue(spyVialSetQmkSetting.some(call => call.name === "brightness" && call.value === 100));
             assert.isTrue(spyVialSetQmkSetting.some(call => call.name === "effect" && call.value === "rainbow"));
             assert.strictEqual(spyVialKbSaveSettings, true);
-            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 2 applied, 0 failed/skipped.")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("qmk_settings: 2 applied, 0 failed/skipped.")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should use kb.setQmkSetting if setQmkSetting not available', async () => {
@@ -671,7 +664,7 @@ describe('keyboard_upload.js command tests', () => {
             assert.strictEqual(spyVialKbSetQmkSetting.length, 1);
             assert.strictEqual(spyVialKbSetQmkSetting[0].name, "test");
             assert.strictEqual(spyVialKbSetQmkSetting[0].value, "value");
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
 
         it('should handle mixed success and failure in individual settings', async () => {
@@ -687,8 +680,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 0 applied, 2 failed/skipped.")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("qmk_settings: 0 applied, 2 failed/skipped.")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
 
         it('should warn if no setting methods available', async () => {
@@ -700,8 +693,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 0 applied, 1 failed/skipped.")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("qmk_settings: 0 applied, 1 failed/skipped.")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
 
         it('should handle error during bulk push', async () => {
@@ -713,8 +706,8 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings (bulk): failed (Bulk push error: Simulated qmkSettings.push error)")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("qmk_settings (bulk): failed (Bulk push error: Simulated qmkSettings.push error)")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
     });
 
@@ -744,12 +737,12 @@ describe('keyboard_upload.js command tests', () => {
         assert.isNotNull(spyVialMacroPush);
         assert.isNotNull(spyVialKeyOverridePush);
         assert.strictEqual(spyVialSetQmkSetting.length, 1);
-        assert.isTrue(consoleLogOutput.some(line => line.includes("keymap: succeeded")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("macros: succeeded")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("qmk_settings: 1 applied, 0 failed/skipped.")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("keymap: succeeded")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("macros: succeeded")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("key_overrides: succeeded")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("qmk_settings: 1 applied, 0 failed/skipped.")));
         assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should continue uploading other sections if one section fails', async () => {
@@ -767,10 +760,10 @@ describe('keyboard_upload.js command tests', () => {
 
         await sandbox.global.runUploadFile("test.svl", {});
 
-        assert.isTrue(consoleLogOutput.some(line => line.includes('keymap: failed (Invalid keycode string in keymap: "KC_INVALID")')));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("macros: succeeded")));
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("File upload process completed with one or more errors")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('keymap: failed (Invalid keycode string in keymap: "KC_INVALID")')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("macros: succeeded")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("File upload process completed with one or more errors")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle empty .svl file gracefully', async () => {
@@ -781,6 +774,6 @@ describe('keyboard_upload.js command tests', () => {
         await sandbox.global.runUploadFile("empty.svl", {});
 
         assert.isTrue(consoleInfoOutput.some(line => line.includes("File upload process completed successfully")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

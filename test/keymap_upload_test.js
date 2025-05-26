@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 describe('keymap_upload.js command tests', () => {
     let sandbox;
@@ -8,9 +8,7 @@ describe('keymap_upload.js command tests', () => {
     let mockVialApi;
     let mockKey;
     let mockFs;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spy variables
     let spyKeyParseCallCount;
@@ -73,9 +71,7 @@ describe('keymap_upload.js command tests', () => {
             }
         };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -83,10 +79,10 @@ describe('keymap_upload.js command tests', () => {
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/keymap_upload.js']);
     }
 
@@ -119,8 +115,8 @@ describe('keymap_upload.js command tests', () => {
         assert.deepStrictEqual(spyUpdateKeyCalls[0], { layer: 0, row: 0, col: 0, keycode: expectedKeycodeKC_A });
         assert.deepStrictEqual(spyUpdateKeyCalls[1], { layer: 0, row: 0, col: 1, keycode: expectedKeycodeKC_B });
 
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Full keymap uploaded successfully")), "No success message");
-        assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Full keymap uploaded successfully")), "No success message");
+        assert.strictEqual(testState.mockProcessExitCode, 0, `Exit code was ${testState.mockProcessExitCode}`);
     });
 
     it('should error if file not found', async () => {
@@ -130,9 +126,9 @@ describe('keymap_upload.js command tests', () => {
             throw new Error(`testFileNotFound: Unhandled path: ${filepath}`);
         };
         await sandbox.global.runUploadKeymap("nonexistent.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Could not read file "nonexistent.json"')));
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('File actually not found')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Could not read file "nonexistent.json"')));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('File actually not found')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for invalid JSON format', async () => {
@@ -142,8 +138,8 @@ describe('keymap_upload.js command tests', () => {
             throw new Error(`testInvalidJsonFormat: Unhandled path: ${filepath}`);
         };
         await sandbox.global.runUploadKeymap("invalid.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Could not parse JSON from file "invalid.json"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Could not parse JSON from file "invalid.json"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
@@ -154,8 +150,8 @@ describe('keymap_upload.js command tests', () => {
             throw new Error(`testNoDevice: Unhandled readFileSync path: ${filepath}`);
         };
         await sandbox.global.runUploadKeymap("any_file.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if getKeyboardInfo fails', async () => {
@@ -166,8 +162,8 @@ describe('keymap_upload.js command tests', () => {
             throw new Error(`testGetKeyboardInfoFails: Unhandled readFileSync path: ${filepath}`);
         };
         await sandbox.global.runUploadKeymap("any_file.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not retrieve keyboard dimensions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not retrieve keyboard dimensions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if layer count in file mismatches keyboard', async () => {
@@ -179,8 +175,8 @@ describe('keymap_upload.js command tests', () => {
             throw new Error(`testLayerCountMismatch: Unhandled path: ${filepath}`);
         };
         await sandbox.global.runUploadKeymap("wrong_layers.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Keymap file has 2 layers, but keyboard expects 1.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Keymap file has 2 layers, but keyboard expects 1.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if row count in file mismatches keyboard', async () => {
@@ -192,8 +188,8 @@ describe('keymap_upload.js command tests', () => {
             throw new Error(`testRowCountMismatch: Unhandled path: ${filepath}`);
         };
         await sandbox.global.runUploadKeymap("wrong_rows.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Layer 0 in keymap file has 2 rows, but keyboard expects 1.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Layer 0 in keymap file has 2 rows, but keyboard expects 1.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if column count in file mismatches keyboard', async () => {
@@ -206,8 +202,8 @@ describe('keymap_upload.js command tests', () => {
         };
         await sandbox.global.runUploadKeymap("wrong_cols.json");
         const expectedErrorMsg = "Error: Layer 0, Row 0 in keymap file has 3 columns, but keyboard expects 2.";
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(expectedErrorMsg)));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(expectedErrorMsg)));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for invalid keycode string in JSON file', async () => {
@@ -218,9 +214,9 @@ describe('keymap_upload.js command tests', () => {
             throw new Error(`testInvalidKeycodeInJson: Unhandled path: ${filepath}`);
         };
         await sandbox.global.runUploadKeymap("invalid_kc_in_file.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing key "KC_INVALID" in layer 0, row 0, col 1')));
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('"KC_INVALID" is not a valid key definition.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing key "KC_INVALID" in layer 0, row 0, col 1')));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('"KC_INVALID" is not a valid key definition.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if KEY.parse throws an error', async () => {
@@ -231,9 +227,9 @@ describe('keymap_upload.js command tests', () => {
             throw new Error(`testKeyParseThrowsError: Unhandled path: ${filepath}`);
         };
         await sandbox.global.runUploadKeymap("key_parse_error.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing key "KC_ERROR_PARSE"')));
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Simulated KEY.parse error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing key "KC_ERROR_PARSE"')));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Simulated KEY.parse error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.api.updateKey is missing', async () => {
@@ -243,8 +239,8 @@ describe('keymap_upload.js command tests', () => {
             return JSON.stringify([[["KC_A", "KC_B"]]]);
         };
         await sandbox.global.runUploadKeymap("valid_for_missing_updatekey.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Vial.api.updateKey not found")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Vial.api.updateKey not found")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.api.updateKey', async () => {
@@ -254,7 +250,7 @@ describe('keymap_upload.js command tests', () => {
             return JSON.stringify([[["KC_A", "KC_B"]]]);
         };
         await sandbox.global.runUploadKeymap("valid_for_updatekey_error.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during keymap upload: Error: UpdateKey hardware failure")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("An unexpected error occurred during keymap upload: Error: UpdateKey hardware failure")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

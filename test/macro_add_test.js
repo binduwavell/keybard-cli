@@ -1,5 +1,5 @@
 const { assert } = require('chai');
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 const MAX_MACRO_SLOTS_IN_TEST = 16;
 
@@ -10,9 +10,7 @@ describe('macro_add.js command tests', () => {
     let mockVialMacro;
     let mockVialKb;
     let mockKey;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spies
     let spyKeyParseCalls;
@@ -83,9 +81,7 @@ describe('macro_add.js command tests', () => {
         spyKeyParseCalls = [];
         mockKey = { parse: mockKeyParseImplementation };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -94,10 +90,10 @@ describe('macro_add.js command tests', () => {
             fs: {},
             runInitializers: () => {},
             MAX_MACRO_SLOTS: MAX_MACRO_SLOTS_IN_TEST,
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/macro_add.js']);
     }
 
@@ -122,8 +118,8 @@ describe('macro_add.js command tests', () => {
             ['tap', "KC_B"]
         ]);
         assert.strictEqual(spyVialKbSaveMacrosCalled, true, "saveMacros was not called");
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Macro successfully added with ID 0")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro successfully added with ID 0")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should add a macro with text action', async () => {
@@ -136,7 +132,7 @@ describe('macro_add.js command tests', () => {
             ['tap', "KC_H"],
             ['text', '"ello World!"'] // The quotes are included in the captured text
         ]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should add a macro with DOWN and UP actions', async () => {
@@ -150,7 +146,7 @@ describe('macro_add.js command tests', () => {
             ['tap', "KC_C"],
             ['up', "KC_LCTL"]
         ]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should find the next empty slot for a new macro', async () => {
@@ -163,8 +159,8 @@ describe('macro_add.js command tests', () => {
 
         const addedMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 1);
         assert.ok(addedMacro, "Macro not found at mid 1");
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Macro successfully added with ID 1")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro successfully added with ID 1")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should use empty macro slot (no actions)', async () => {
@@ -178,7 +174,7 @@ describe('macro_add.js command tests', () => {
         const addedMacro = spyVialMacroPushKbinfo.macros.find(m => m && m.mid === 0);
         assert.ok(addedMacro);
         assert.deepStrictEqual(addedMacro.actions, [['tap', "KC_Z"]]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should parse bare key names as TAP actions', async () => {
@@ -191,7 +187,7 @@ describe('macro_add.js command tests', () => {
             ['tap', "KC_B"],
             ['tap', "KC_C"]
         ]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     // --- Sad Path Tests ---
@@ -208,36 +204,36 @@ describe('macro_add.js command tests', () => {
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: No empty macro slots available. Max ${MAX_MACRO_SLOTS_IN_TEST} reached.`)));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: No empty macro slots available. Max ${MAX_MACRO_SLOTS_IN_TEST} reached.`)));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with empty macro sequence', async () => {
         await sandbox.global.runAddMacro("", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Macro sequence is empty or invalid.')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Macro sequence is empty or invalid.')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid key in sequence', async () => {
         await sandbox.global.runAddMacro("TAP(KC_INVALID)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing macro sequence: Invalid key string in macro sequence: "KC_INVALID"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing macro sequence: Invalid key string in macro sequence: "KC_INVALID"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid action format', async () => {
         await sandbox.global.runAddMacro("INVALID_ACTION(KC_A)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing macro sequence: Invalid key string or unknown action in macro sequence: "INVALID_ACTION(KC_A)"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing macro sequence: Invalid key string or unknown action in macro sequence: "INVALID_ACTION(KC_A)"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error with invalid bare key name', async () => {
         await sandbox.global.runAddMacro("KC_INVALID", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing macro sequence: Invalid key string or unknown action in macro sequence: "KC_INVALID"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing macro sequence: Invalid key string or unknown action in macro sequence: "KC_INVALID"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
@@ -246,8 +242,8 @@ describe('macro_add.js command tests', () => {
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
@@ -257,21 +253,19 @@ describe('macro_add.js command tests', () => {
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if required objects not found in sandbox', async () => {
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        const localTestState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             // Missing USB, Vial, etc.
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: localTestState.consoleLogOutput,
+            consoleErrorOutput: localTestState.consoleErrorOutput,
+            mockProcessExitCode: localTestState.mockProcessExitCode,
+            setMockProcessExitCode: localTestState.setMockProcessExitCode
         }, ['lib/macro_add.js']);
 
         // Check if the function was exposed despite missing objects
@@ -279,8 +273,8 @@ describe('macro_add.js command tests', () => {
             try {
                 await sandbox.global.runAddMacro("TAP(KC_A)", {});
                 assert.isTrue(
-                    consoleErrorOutput.some(line => line.includes("Error: Required objects not found in sandbox.")) ||
-                    mockProcessExitCode === 1
+                    localTestState.consoleErrorOutput.some(line => line.includes("Error: Required objects not found in sandbox.")) ||
+                    localTestState.mockProcessExitCode === 1
                 );
             } catch (error) {
                 // ReferenceError is also acceptable since USB is not defined
@@ -297,8 +291,8 @@ describe('macro_add.js command tests', () => {
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Vial.macro.push is not available. Cannot add macro.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Vial.macro.push is not available. Cannot add macro.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if macro data not populated by Vial functions', async () => {
@@ -311,8 +305,8 @@ describe('macro_add.js command tests', () => {
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Macro data not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Macro data not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should warn if Vial.kb.saveMacros function not found', async () => {
@@ -320,8 +314,8 @@ describe('macro_add.js command tests', () => {
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found. Changes might be volatile or rely on firmware auto-save.")));
-        assert.strictEqual(mockProcessExitCode, 0); // Should still succeed
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found. Changes might be volatile or rely on firmware auto-save.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0); // Should still succeed
     });
 
     it('should handle error during Vial.macro.push', async () => {
@@ -329,8 +323,8 @@ describe('macro_add.js command tests', () => {
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.kb.saveMacros', async () => {
@@ -338,15 +332,15 @@ describe('macro_add.js command tests', () => {
 
         await sandbox.global.runAddMacro("TAP(KC_A)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle invalid DELAY format', async () => {
         // DELAY(abc) won't match the DELAY regex and will be treated as a key name, which should fail
         await sandbox.global.runAddMacro("DELAY(abc)", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing macro sequence: Invalid key string or unknown action in macro sequence: "DELAY(abc)"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing macro sequence: Invalid key string or unknown action in macro sequence: "DELAY(abc)"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

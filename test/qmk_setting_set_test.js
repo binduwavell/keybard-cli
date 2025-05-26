@@ -1,6 +1,6 @@
 // test/test_set_qmk_setting.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 describe('qmk_setting_set.js command tests', () => {
     let sandbox;
@@ -8,10 +8,7 @@ describe('qmk_setting_set.js command tests', () => {
     let mockVial;
     let mockFs;
     let mockKey;
-
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spies
     let spyVialSetQmkSetting;
@@ -84,22 +81,15 @@ describe('qmk_setting_set.js command tests', () => {
         mockFs = { /* No direct fs ops here */ };
         mockKey = { parse: () => 0 };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb, Vial: mockVial, KEY: mockKey, fs: mockFs,
             runInitializers: () => {},
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/qmk_setting_set.js']);
     }
 
@@ -116,7 +106,7 @@ describe('qmk_setting_set.js command tests', () => {
             await sandbox.global.runSetQmkSetting("aSetting", "true", {});
             assert.ok(spyVialSetQmkSetting);
             assert.strictEqual(spyVialSetQmkSetting.value, true);
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
         it('should parse "FALSE" string as boolean false', async () => {
             await sandbox.global.runSetQmkSetting("aSetting", "FALSE", {});
@@ -163,7 +153,7 @@ describe('qmk_setting_set.js command tests', () => {
             assert.strictEqual(spyVialSetQmkSetting.name, "mySetting");
             assert.strictEqual(spyVialSetQmkSetting.value, "myValue");
             assert.isTrue(spyVialKbSaveQmkSettings);
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
         it('should use Vial.kb.setQmkSetting and Vial.kb.saveSettings if available', async () => {
             setupTestEnvironment({}, { hasVialKbSetQmkSetting: true, hasVialKbSaveSettings: true });
@@ -172,14 +162,14 @@ describe('qmk_setting_set.js command tests', () => {
             assert.strictEqual(spyVialKbSetQmkSetting.name, "otherSetting");
             assert.strictEqual(spyVialKbSetQmkSetting.value, 42);
             assert.isTrue(spyVialKbSaveSettings);
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
         it('should warn if direct set method exists but no specific save function', async () => {
             setupTestEnvironment({}, { hasVialSetQmkSetting: true }); // No saveQmkSettings or saveSettings
             await sandbox.global.runSetQmkSetting("noSaveTest", "true", {});
             assert.ok(spyVialSetQmkSetting);
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: Setting 'noSaveTest' might have been applied but no standard save function")));
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Setting 'noSaveTest' might have been applied but no standard save function")));
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
     });
 
@@ -195,7 +185,7 @@ describe('qmk_setting_set.js command tests', () => {
             assert.strictEqual(spyVialQmkSettingsPush.qmk_settings.existingSetting, "newValue");
             assert.strictEqual(spyVialQmkSettingsPush.qmk_settings.another, 10);
             assert.isTrue(spyVialKbSave);
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
         it('should use Vial.settings.push and Vial.kb.save if direct set and qmkSettings.push are unavailable', async () => {
             const initialSettings = { "settingA": false };
@@ -207,7 +197,7 @@ describe('qmk_setting_set.js command tests', () => {
             assert.ok(spyVialSettingsPush);
             assert.strictEqual(spyVialSettingsPush.settings.settingA, true);
             assert.isTrue(spyVialKbSave);
-            assert.strictEqual(mockProcessExitCode, 0);
+            assert.strictEqual(testState.mockProcessExitCode, 0);
         });
         it('should error if setting does not exist for load-modify-push', async () => {
             setupTestEnvironment(
@@ -215,16 +205,16 @@ describe('qmk_setting_set.js command tests', () => {
                 { hasVialQmkSettingsPush: true, hasVialKbSave: true }
             );
             await sandbox.global.runSetQmkSetting("unknownSetting", "value", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: QMK setting "unknownSetting" not found in device settings. Cannot update via load-modify-push if not pre-existing.')));
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: QMK setting "unknownSetting" not found in device settings. Cannot update via load-modify-push if not pre-existing.')));
             assert.isNull(spyVialQmkSettingsPush);
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
         it('should error in fallback if no push function is available', async () => {
             setupTestEnvironment({ qmk_settings: { "setting": "val" } }); // No push functions configured
             await sandbox.global.runSetQmkSetting("setting", "newVal", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: Could not find a settings push function")));
-            assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Could not set QMK setting "setting". No suitable push mechanism found for load-modify-push.')));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Could not find a settings push function")));
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Could not set QMK setting "setting". No suitable push mechanism found for load-modify-push.')));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
     });
 
@@ -238,42 +228,42 @@ describe('qmk_setting_set.js command tests', () => {
         assert.strictEqual(spyVialSetQmkSetting.value, "directValue");
         assert.isNull(spyVialQmkSettingsPush);
         assert.isTrue(spyVialKbSave);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     describe('Error Handling', () => {
         it('should error if no set or push mechanism is found', async () => {
             setupTestEnvironment({ qmk_settings: { "setting": "val" } }); // No Vial functions configured
             await sandbox.global.runSetQmkSetting("setting", "val", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes('Error: Could not set QMK setting "setting". No suitable push mechanism found for load-modify-push.')));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Could not set QMK setting "setting". No suitable push mechanism found for load-modify-push.')));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
         it('should error if no settings object and no direct set mechanism', async () => {
             setupTestEnvironment({}); // No settings object, no Vial functions configured
             await sandbox.global.runSetQmkSetting("any", "val", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: QMK settings object not available on this device. Cannot use load-modify-push.")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: QMK settings object not available on this device. Cannot use load-modify-push.")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
         it('should error if setting name is missing (null)', async () => {
             await sandbox.global.runSetQmkSetting(null, "value", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: QMK setting name must be provided")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: QMK setting name must be provided")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
         it('should error if value is missing (null)', async () => {
             await sandbox.global.runSetQmkSetting("aSetting", null, {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Value for the QMK setting must be provided")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Value for the QMK setting must be provided")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
          it('should error if value is an empty or whitespace string', async () => {
             await sandbox.global.runSetQmkSetting("aSetting", " ", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Value for the QMK setting must be provided and be non-empty.")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Value for the QMK setting must be provided and be non-empty.")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
         it('should handle error if direct set method throws', async () => {
             setupTestEnvironment({}, { hasVialSetQmkSetting: true, setQmkSettingThrows: true });
             await sandbox.global.runSetQmkSetting("aSetting", "val", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred: Vial.setQmkSetting error")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("An unexpected error occurred: Vial.setQmkSetting error")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
         it('should handle error if fallback push method throws', async () => {
             setupTestEnvironment(
@@ -281,8 +271,8 @@ describe('qmk_setting_set.js command tests', () => {
                 { hasVialQmkSettingsPush: true, qmkSettingsPushThrows: true }
             );
             await sandbox.global.runSetQmkSetting("aSetting", "new", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred: Vial.qmkSettings.push error")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("An unexpected error occurred: Vial.qmkSettings.push error")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
         it('should handle error if save method throws', async () => {
             setupTestEnvironment(
@@ -290,23 +280,23 @@ describe('qmk_setting_set.js command tests', () => {
                 { hasVialSetQmkSetting: true, hasVialKbSave: true, saveThrows: true }
             );
             await sandbox.global.runSetQmkSetting("aSetting", "val", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred: Vial.kb.save error")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("An unexpected error occurred: Vial.kb.save error")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
         it('should error if no compatible device is found', async () => {
             setupTestEnvironment(); // Call default setup first
             mockUsb.list = () => []; // Then override usb mock for this specific test
             await sandbox.global.runSetQmkSetting("any", "val", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
         it('should error if USB open fails', async () => {
             setupTestEnvironment();
             // Mock the openDeviceConnection to fail
             sandbox.global.deviceSelection.openDeviceConnection = async () => false;
             await sandbox.global.runSetQmkSetting("any", "val", {});
-            assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-            assert.strictEqual(mockProcessExitCode, 1);
+            assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+            assert.strictEqual(testState.mockProcessExitCode, 1);
         });
     });
 });

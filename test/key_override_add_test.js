@@ -1,6 +1,6 @@
 // test/test_add_key_override.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 const MAX_KEY_OVERRIDE_SLOTS_IN_TEST = 8;
 
@@ -11,9 +11,7 @@ describe('key_override_add.js command tests', () => {
     let mockVialKeyOverride;
     let mockVialKb;
     let mockKey;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode; // To mock process.exitCode within tests
+    let testState;
 
     // Spies
     let spyKeyParseCalls;
@@ -82,9 +80,7 @@ describe('key_override_add.js command tests', () => {
         spyKeyParseCalls = [];
         mockKey = { parse: mockKeyParseImplementation };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -93,10 +89,10 @@ describe('key_override_add.js command tests', () => {
             fs: {},
             runInitializers: () => {},
             MAX_KEY_OVERRIDE_SLOTS: MAX_KEY_OVERRIDE_SLOTS_IN_TEST,
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/key_override_add.js']);
     }
 
@@ -119,8 +115,8 @@ describe('key_override_add.js command tests', () => {
         assert.strictEqual(addedOverride.trigger, triggerKey);
         assert.strictEqual(addedOverride.replacement, overrideKey);
         assert.strictEqual(spyVialKbSaveKeyOverridesCalled, true, "saveKeyOverrides was not called");
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should find the next empty slot for a new key override', async () => {
@@ -140,8 +136,8 @@ describe('key_override_add.js command tests', () => {
         assert.strictEqual(addedOverride.trigger, triggerKey);
         assert.strictEqual(addedOverride.replacement, overrideKey);
         assert.isTrue(spyVialKbSaveKeyOverridesCalled);
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Key override successfully added with ID 1")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override successfully added with ID 1")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if no empty key override slots are available', async () => {
@@ -151,40 +147,40 @@ describe('key_override_add.js command tests', () => {
         }
         setupTestEnvironment({ key_overrides: fullOverrides, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: No empty key override slots available. Max ${MAX_KEY_OVERRIDE_SLOTS_IN_TEST} reached.`)));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: No empty key override slots available. Max ${MAX_KEY_OVERRIDE_SLOTS_IN_TEST} reached.`)));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if trigger key is missing', async () => {
         await sandbox.global.runAddKeyOverride(null, "KC_B", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Trigger key and override key must be provided.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Trigger key and override key must be provided.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if override key is missing', async () => {
         await sandbox.global.runAddKeyOverride("KC_A", undefined, {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Trigger key and override key must be provided.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Trigger key and override key must be provided.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if trigger key string is invalid', async () => {
         await sandbox.global.runAddKeyOverride("KC_INVALID", "KC_B", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing key strings: Invalid trigger key string: "KC_INVALID"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing key strings: Invalid trigger key string: "KC_INVALID"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if override key string is invalid', async () => {
         await sandbox.global.runAddKeyOverride("KC_A", "KC_INVALID", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing key strings: Invalid override key string: "KC_INVALID"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing key strings: Invalid override key string: "KC_INVALID"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
         setupTestEnvironment(); // Call it to ensure mocks are set, then override list
         mockUsb.list = () => [];
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
@@ -192,8 +188,8 @@ describe('key_override_add.js command tests', () => {
         // Mock the openDeviceConnection to fail
         sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.load does not populate key override data', async () => {
@@ -203,38 +199,38 @@ describe('key_override_add.js command tests', () => {
             }
         });
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Key override data not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Key override data not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.key_override.push', async () => {
         setupTestEnvironment({}, {}, { push: async () => { throw new Error("Simulated Push Error"); } });
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.kb.saveKeyOverrides', async () => {
         setupTestEnvironment({}, {}, {}, { saveKeyOverrides: async () => { throw new Error("Simulated Save Error"); } });
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should use Vial.kb.save if saveKeyOverrides is missing', async () => {
         setupTestEnvironment({}, {}, {}, { saveKeyOverrides: undefined, save: async () => { spyVialKbSaveKeyOverridesCalled = true; } });
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0")));
         assert.isTrue(spyVialKbSaveKeyOverridesCalled);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should warn if no save function (saveKeyOverrides or save) is found', async () => {
         setupTestEnvironment({}, {}, {}, { saveKeyOverrides: undefined, save: undefined });
         await sandbox.global.runAddKeyOverride("KC_A", "KC_B", {});
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0")));
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
         assert.isFalse(spyVialKbSaveKeyOverridesCalled);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });

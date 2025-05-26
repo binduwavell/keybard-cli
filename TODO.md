@@ -78,22 +78,22 @@ const testState = createTestState();
 ```
 
 ### Tasks:
-- [ ] Migrate `test/keyboard_download_test.js` to use `createTestState()`
-- [ ] Migrate `test/macro_add_test.js` to use `createTestState()`
-- [ ] Migrate `test/keymap_download_test.js` to use `createTestState()`
-- [ ] Migrate `test/keymap_get_test.js` to use `createTestState()`
-- [ ] Migrate `test/keymap_set_test.js` to use `createTestState()`
-- [ ] Migrate `test/keymap_upload_test.js` to use `createTestState()`
-- [ ] Migrate `test/macro_delete_test.js` to use `createTestState()`
-- [ ] Migrate `test/macro_edit_test.js` to use `createTestState()`
-- [ ] Migrate `test/macro_get_test.js` to use `createTestState()`
-- [ ] Migrate `test/qmk_setting_get_test.js` to use `createTestState()`
-- [ ] Migrate `test/qmk_setting_list_test.js` to use `createTestState()`
-- [ ] Migrate `test/qmk_setting_set_test.js` to use `createTestState()`
-- [ ] Migrate `test/keyboard_upload_test.js` to use `createTestState()`
-- [ ] Migrate `test/key_override_list_test.js` to use `createTestState()`
-- [ ] Migrate `test/key_override_add_test.js` to use `createTestState()`
-- [ ] Migrate `test/key_override_edit_test.js` to use `createTestState()`
+- [x] Migrate `test/keyboard_download_test.js` to use `createTestState()`
+- [x] Migrate `test/macro_add_test.js` to use `createTestState()`
+- [x] Migrate `test/keymap_download_test.js` to use `createTestState()`
+- [x] Migrate `test/keymap_get_test.js` to use `createTestState()`
+- [x] Migrate `test/keymap_set_test.js` to use `createTestState()`
+- [x] Migrate `test/keymap_upload_test.js` to use `createTestState()`
+- [x] Migrate `test/macro_delete_test.js` to use `createTestState()`
+- [x] Migrate `test/macro_edit_test.js` to use `createTestState()`
+- [x] Migrate `test/macro_get_test.js` to use `createTestState()`
+- [x] Migrate `test/qmk_setting_get_test.js` to use `createTestState()`
+- [x] Migrate `test/qmk_setting_list_test.js` to use `createTestState()`
+- [x] Migrate `test/qmk_setting_set_test.js` to use `createTestState()`
+- [x] Migrate `test/keyboard_upload_test.js` to use `createTestState()`
+- [x] Migrate `test/key_override_list_test.js` to use `createTestState()`
+- [x] Migrate `test/key_override_add_test.js` to use `createTestState()`
+- [x] Migrate `test/key_override_edit_test.js` to use `createTestState()`
 
 ## Priority 2: USB Mock Standardization
 
@@ -140,7 +140,7 @@ mockVial = createMockVial(defaultKbinfo, vialMethodOverrides);
 ```
 
 ### Tasks:
-- [ ] Audit test files for manual Vial mock creation patterns
+- [ ] Audit test files for manual Vial mock creation patterns, add each file as an incomplete task after this task
 - [ ] Migrate identified files to use `createMockVial()` where appropriate
 - [ ] Document any complex Vial mock requirements that need helper enhancements
 
@@ -166,7 +166,7 @@ mockFs = createMockFS({ spyWriteCalls });
 ```
 
 ### Tasks:
-- [ ] Identify test files that manually create file system mocks
+- [ ] Identify test files that manually create file system mocks, add each file as an incomplete task after this task
 - [ ] Migrate to use `createMockFS()` helper
 - [ ] Enhance `createMockFS()` if additional capabilities are needed
 

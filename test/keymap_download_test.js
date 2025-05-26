@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 describe('keymap_download.js command tests', () => {
     let sandbox;
@@ -8,9 +8,7 @@ describe('keymap_download.js command tests', () => {
     let mockVialKb;
     let mockKey;
     let mockFs;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spy variables
     let spyWriteFileSyncPath;
@@ -61,9 +59,7 @@ describe('keymap_download.js command tests', () => {
             }
         };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -71,10 +67,10 @@ describe('keymap_download.js command tests', () => {
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/keymap_download.js']);
     }
 
@@ -104,30 +100,30 @@ describe('keymap_download.js command tests', () => {
         }
 
         assert.deepStrictEqual(parsedWrittenData, expectedKeymapStructure, "Keymap JSON structure or content mismatch.");
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Keymap successfully downloaded to ${outputPath}`)), "Success message not logged.");
-        assert.strictEqual(mockProcessExitCode, 0, `Exit code was ${mockProcessExitCode}`);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Keymap successfully downloaded to ${outputPath}`)), "Success message not logged.");
+        assert.strictEqual(testState.mockProcessExitCode, 0, `Exit code was ${testState.mockProcessExitCode}`);
     });
 
     it('should report error if no compatible device is found', async () => {
         mockUsb.list = () => []; // Override for this test
         await sandbox.global.runDownloadKeymap("output.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")), "Error message missing.");
-        assert.strictEqual(mockProcessExitCode, 1, "Exit code not 1.");
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")), "Error message missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 1, "Exit code not 1.");
     });
 
     it('should report error if USB open fails', async () => {
         // Mock the openDeviceConnection to fail
         sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runDownloadKeymap("output.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")), "Error message missing.");
-        assert.strictEqual(mockProcessExitCode, 1, "Exit code not 1.");
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")), "Error message missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 1, "Exit code not 1.");
     });
 
     it('should error if Vial.load fails to provide keymap', async () => {
         setupTestEnvironment({ keymap: undefined });
         await sandbox.global.runDownloadKeymap("output.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Keymap data or keyboard dimensions not fully populated")), "Error message missing.");
-        assert.strictEqual(mockProcessExitCode, 1, "Exit code not 1.");
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Keymap data or keyboard dimensions not fully populated")), "Error message missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 1, "Exit code not 1.");
     });
 
     it('should error if Vial.init/load fails to provide dimensions', async () => {
@@ -140,8 +136,8 @@ describe('keymap_download.js command tests', () => {
         setupTestEnvironment({}, customVialOverrides);
 
         await sandbox.global.runDownloadKeymap("output.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Keymap data or keyboard dimensions not fully populated")), "Error message missing.");
-        assert.strictEqual(mockProcessExitCode, 1, "Exit code not 1.");
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Keymap data or keyboard dimensions not fully populated")), "Error message missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 1, "Exit code not 1.");
     });
 
     it('should error if keymap data has incorrect length for a layer', async () => {
@@ -150,8 +146,8 @@ describe('keymap_download.js command tests', () => {
             keymap: [ ["KC_A", "KC_B", "KC_C"] ] // 3 keys for a 2x2 layer (expects 4)
         });
         await sandbox.global.runDownloadKeymap("output.json");
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Layer 0 data is missing or has incorrect number of keys. Expected 4, found 3.")), "Error message missing.");
-        assert.strictEqual(mockProcessExitCode, 1, "Exit code not 1.");
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Layer 0 data is missing or has incorrect number of keys. Expected 4, found 3.")), "Error message missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 1, "Exit code not 1.");
     });
 
     it('should report error if file write fails', async () => {
@@ -163,7 +159,7 @@ describe('keymap_download.js command tests', () => {
             throw new Error(expectedErrorMessage);
         };
         await sandbox.global.runDownloadKeymap(outputPath);
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing keymap to file "${outputPath}": ${expectedErrorMessage}`)), "Error message missing.");
-        assert.strictEqual(mockProcessExitCode, 1, "Exit code not 1.");
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error writing keymap to file "${outputPath}": ${expectedErrorMessage}`)), "Error message missing.");
+        assert.strictEqual(testState.mockProcessExitCode, 1, "Exit code not 1.");
     });
 });

@@ -1,6 +1,6 @@
 // test/test_list_qmk_settings.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 describe('qmk_settings_list.js command tests', () => {
     let sandbox;
@@ -8,11 +8,8 @@ describe('qmk_settings_list.js command tests', () => {
     let mockVial;
     let mockFs;
     let mockKey;
-
-    let consoleLogOutput;
-    let consoleErrorOutput;
+    let testState;
     let consoleInfoOutput;
-    let mockProcessExitCode;
 
     // Spies
     let spyFsWriteFileSync;
@@ -55,10 +52,8 @@ describe('qmk_settings_list.js command tests', () => {
 
         mockKey = { parse: () => 0 }; // Minimal KEY mock
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
+        testState = createTestState();
         consoleInfoOutput = [];
-        mockProcessExitCode = undefined;
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -67,15 +62,15 @@ describe('qmk_settings_list.js command tests', () => {
             fs: mockFs,
             runInitializers: () => {},
             console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
+                log: (...args) => testState.consoleLogOutput.push(args.join(' ')),
+                error: (...args) => testState.consoleErrorOutput.push(args.join(' ')),
+                warn: (...args) => testState.consoleErrorOutput.push(args.join(' ')),
                 info: (...args) => consoleInfoOutput.push(args.join(' ')),
             },
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/qmk_setting_list.js']);
     }
 
@@ -88,13 +83,13 @@ describe('qmk_settings_list.js command tests', () => {
         setupTestEnvironment({ qmk_settings: settingsData });
         await sandbox.global.runListQmkSettings({}); // Options can be empty for console output
 
-        assert.deepStrictEqual(consoleLogOutput, [
+        assert.deepStrictEqual(testState.consoleLogOutput, [
             "QMK Settings:",
             "  brightness: 100",
             "  rgb_effect: solid"
         ]);
-        assert.strictEqual(consoleErrorOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.consoleErrorOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should list QMK settings to console from kbinfo.settings as fallback', async () => {
@@ -102,13 +97,13 @@ describe('qmk_settings_list.js command tests', () => {
         setupTestEnvironment({ settings: settingsData, qmk_settings: undefined });
         await sandbox.global.runListQmkSettings({});
 
-        assert.deepStrictEqual(consoleLogOutput, [
+        assert.deepStrictEqual(testState.consoleLogOutput, [
             "QMK Settings:",
             "  legacy_setting: on",
             "  timeout: 30"
         ]);
-        assert.strictEqual(consoleErrorOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.consoleErrorOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should write QMK settings from kbinfo.qmk_settings to a file', async () => {
@@ -120,8 +115,8 @@ describe('qmk_settings_list.js command tests', () => {
         assert.ok(spyFsWriteFileSync, "fs.writeFileSync was not called");
         assert.strictEqual(spyFsWriteFileSync.filepath, outputPath);
         assert.deepStrictEqual(JSON.parse(spyFsWriteFileSync.data), settingsData);
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`QMK settings successfully written to ${outputPath}`)));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`QMK settings successfully written to ${outputPath}`)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should write QMK settings from kbinfo.settings (fallback) to a file', async () => {
@@ -133,15 +128,15 @@ describe('qmk_settings_list.js command tests', () => {
         assert.ok(spyFsWriteFileSync, "fs.writeFileSync was not called");
         assert.strictEqual(spyFsWriteFileSync.filepath, outputPath);
         assert.deepStrictEqual(JSON.parse(spyFsWriteFileSync.data), settingsData);
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`QMK settings successfully written to ${outputPath}`)));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`QMK settings successfully written to ${outputPath}`)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should inform if QMK settings object is empty', async () => {
         setupTestEnvironment({ qmk_settings: {} });
         await sandbox.global.runListQmkSettings({});
-        assert.isTrue(consoleLogOutput.some(line => line.includes("QMK settings object found, but it is empty.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("QMK settings object found, but it is empty.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should handle file write errors and fallback to console', async () => {
@@ -160,38 +155,38 @@ describe('qmk_settings_list.js command tests', () => {
 
         assert.ok(spyFsWriteFileSync, "fs.writeFileSync was not attempted or spy not set before throw");
         assert.strictEqual(spyFsWriteFileSync.filepath, outputPath);
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing QMK settings to file ${outputPath}: Simulated file write error`)));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("QMK Settings (fallback to console, text format):")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("brightness: 50")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error writing QMK settings to file ${outputPath}: Simulated file write error`)));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("QMK Settings (fallback to console, text format):")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("brightness: 50")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should inform if no QMK settings are found (both qmk_settings and settings undefined)', async () => {
         setupTestEnvironment({ qmk_settings: undefined, settings: undefined });
         await sandbox.global.runListQmkSettings({});
         assert.isTrue(consoleInfoOutput.some(line => line.includes("QMK settings not available or not found on this device.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should inform if QMK settings data is not an object', async () => {
         setupTestEnvironment({ qmk_settings: "this is a string" });
         await sandbox.global.runListQmkSettings({});
         assert.isTrue(consoleInfoOutput.some(line => line.includes("QMK settings found but in an unexpected format (Type: string). Expected an object.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if no compatible device is found', async () => {
         mockUsb.list = () => []; // Override for this test
         await sandbox.global.runListQmkSettings({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
         // Mock the openDeviceConnection to fail
         sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runListQmkSettings({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

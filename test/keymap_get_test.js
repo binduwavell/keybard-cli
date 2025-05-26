@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 describe('keymap_get.js command tests', () => {
     let sandbox;
@@ -7,9 +7,7 @@ describe('keymap_get.js command tests', () => {
     let mockVial;
     let mockKey;
     let mockFs;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     function setupTestEnvironment(mockKbinfoOverrides = {}) {
         mockUsb = createMockUSBSingleDevice();
@@ -59,9 +57,7 @@ describe('keymap_get.js command tests', () => {
             }
         };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -69,10 +65,10 @@ describe('keymap_get.js command tests', () => {
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/keymap_get.js']);
     }
 
@@ -83,23 +79,23 @@ describe('keymap_get.js command tests', () => {
     it('should report no device found when USB list is empty', async () => {
         mockUsb.list = () => []; // Override for this test
         await sandbox.global.runGetKeymap({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")), "No device error message");
-        assert.strictEqual(mockProcessExitCode, 1, "process.exitCode not set to 1 on no device");
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")), "No device error message");
+        assert.strictEqual(testState.mockProcessExitCode, 1, "process.exitCode not set to 1 on no device");
     });
 
     it('should report error if USB open fails', async () => {
         // Mock the openDeviceConnection to fail
         sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runGetKeymap({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")), "No USB open error");
-        assert.strictEqual(mockProcessExitCode, 1, "process.exitCode not set to 1 on USB open fail");
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")), "No USB open error");
+        assert.strictEqual(testState.mockProcessExitCode, 1, "process.exitCode not set to 1 on USB open fail");
     });
 
     it('should error if Vial.load fails to provide keymap', async () => {
         setupTestEnvironment({ keymap: undefined });
         await sandbox.global.runGetKeymap({});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Keymap data not fully populated")), "Missing keymap data error");
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Keymap data not fully populated")), "Missing keymap data error");
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should output all layers in JSON format to console by default or when specified', async () => {
@@ -108,20 +104,20 @@ describe('keymap_get.js command tests', () => {
             ["KC_A", "KC_B", "KC_C", "KC_D"],
             ["KC_E", "KC_F", "KC_G", "KC_H"]
         ], null, 2);
-        assert.strictEqual(consoleLogOutput.join('\n'), expectedJson, "JSON all layers console output mismatch");
-        assert.strictEqual(mockProcessExitCode, 0, `process.exitCode was ${mockProcessExitCode}`);
+        assert.strictEqual(testState.consoleLogOutput.join('\n'), expectedJson, "JSON all layers console output mismatch");
+        assert.strictEqual(testState.mockProcessExitCode, 0, `process.exitCode was ${testState.mockProcessExitCode}`);
     });
 
     it('should output all layers in text format to console', async () => {
         await sandbox.global.runGetKeymap({ format: 'text' });
-        const output = consoleLogOutput.join('\n');
+        const output = testState.consoleLogOutput.join('\n');
         assert.include(output, "Layer 0:", "Text output missing Layer 0 header");
         assert.include(output, "  KC_A           KC_B           ", "Text output Layer 0, Row 0 mismatch");
         assert.include(output, "  KC_C           KC_D           ", "Text output Layer 0, Row 1 mismatch");
         assert.include(output, "Layer 1:", "Text output missing Layer 1 header");
         assert.include(output, "  KC_E           KC_F           ", "Text output Layer 1, Row 0 mismatch");
         assert.include(output, "  KC_G           KC_H           ", "Text output Layer 1, Row 1 mismatch");
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should output a specific layer in JSON format to console', async () => {
@@ -129,30 +125,30 @@ describe('keymap_get.js command tests', () => {
         const expectedJson = JSON.stringify([
             ["KC_E", "KC_F", "KC_G", "KC_H"]
         ], null, 2);
-        assert.strictEqual(consoleLogOutput.join('\n'), expectedJson, "JSON specific layer console output mismatch");
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.consoleLogOutput.join('\n'), expectedJson, "JSON specific layer console output mismatch");
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should output a specific layer in text format to console', async () => {
         await sandbox.global.runGetKeymap({ layer: '0', format: 'text' });
-        const output = consoleLogOutput.join('\n');
+        const output = testState.consoleLogOutput.join('\n');
         assert.include(output, "Layer 0:", "Text specific layer missing Layer 0 header");
         assert.include(output, "  KC_A           KC_B           ", "Text specific layer, Row 0 mismatch");
         assert.include(output, "  KC_C           KC_D           ", "Text specific layer, Row 1 mismatch");
         assert.notInclude(output, "Layer 1:", "Text specific layer shows other layers");
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error for an invalid layer number', async () => {
         await sandbox.global.runGetKeymap({ layer: '99', format: 'json' });
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Invalid layer number. Must be between 0 and 1.")), "Invalid layer error message");
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Invalid layer number. Must be between 0 and 1.")), "Invalid layer error message");
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for an unsupported format option', async () => {
         await sandbox.global.runGetKeymap({ format: 'yaml' });
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Unsupported format 'yaml'.")), "Invalid format error message");
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Unsupported format 'yaml'.")), "Invalid format error message");
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should write all layers in JSON format to a file', async () => {
@@ -165,8 +161,8 @@ describe('keymap_get.js command tests', () => {
         ], null, 2);
         assert.strictEqual(mockFs.lastWritePath, testOutputFile);
         assert.strictEqual(mockFs.lastWriteData, expectedJson);
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Keymap data written to ${testOutputFile}`)), "No file write success message");
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Keymap data written to ${testOutputFile}`)), "No file write success message");
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should write a specific layer in text format to a file', async () => {
@@ -178,8 +174,8 @@ describe('keymap_get.js command tests', () => {
         assert.include(mockFs.lastWriteData, "  KC_A           KC_B           ", "File Text specific layer, Row 0 mismatch");
         assert.include(mockFs.lastWriteData, "  KC_C           KC_D           ", "File Text specific layer, Row 1 mismatch");
         assert.notInclude(mockFs.lastWriteData, "Layer 1:", "File Text specific layer shows other layers");
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Keymap data written to ${testOutputFile}`)));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Keymap data written to ${testOutputFile}`)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should report error and fallback to console if file write fails', async () => {
@@ -188,13 +184,13 @@ describe('keymap_get.js command tests', () => {
         const testOutputFile = "keymap_error.json";
         await sandbox.global.runGetKeymap({ format: 'json', outputFile: testOutputFile });
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error writing to file ${testOutputFile}: Error: ${errorMsg}`)), "File write error not reported");
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Keymap Data (fallback on file write error, format: json)")), "No fallback output on file write error");
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error writing to file ${testOutputFile}: Error: ${errorMsg}`)), "File write error not reported");
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Keymap Data (fallback on file write error, format: json)")), "No fallback output on file write error");
         const expectedJson = JSON.stringify([
             ["KC_A", "KC_B", "KC_C", "KC_D"],
             ["KC_E", "KC_F", "KC_G", "KC_H"]
         ], null, 2);
-        assert.strictEqual(consoleLogOutput[consoleLogOutput.length - 1], expectedJson, "Fallback JSON output mismatch");
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.strictEqual(testState.consoleLogOutput[testState.consoleLogOutput.length - 1], expectedJson, "Fallback JSON output mismatch");
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

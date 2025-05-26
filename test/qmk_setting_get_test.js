@@ -1,6 +1,6 @@
 // test/test_get_qmk_setting.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 describe('qmk_setting_get.js command tests', () => {
     let sandbox;
@@ -8,10 +8,7 @@ describe('qmk_setting_get.js command tests', () => {
     let mockVial;
     let mockFs;
     let mockKey;
-
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     function setupTestEnvironment(
         mockKbinfoInitial = {},
@@ -45,9 +42,7 @@ describe('qmk_setting_get.js command tests', () => {
         mockFs = { /* No direct fs operations in get_qmk_setting.js currently */ };
         mockKey = { parse: () => 0 }; // Minimal KEY mock
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -55,16 +50,10 @@ describe('qmk_setting_get.js command tests', () => {
             KEY: mockKey,
             fs: mockFs,
             runInitializers: () => {},
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-                info: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/qmk_setting_get.js']);
     }
 
@@ -77,9 +66,9 @@ describe('qmk_setting_get.js command tests', () => {
         setupTestEnvironment({ qmk_settings: settingsData });
         await sandbox.global.runGetQmkSetting("brightness", {});
 
-        assert.deepStrictEqual(consoleLogOutput, ["brightness: high"]);
-        assert.strictEqual(consoleErrorOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.deepStrictEqual(testState.consoleLogOutput, ["brightness: high"]);
+        assert.strictEqual(testState.consoleErrorOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should get QMK setting successfully from qmk_settings (numeric value)', async () => {
@@ -87,9 +76,9 @@ describe('qmk_setting_get.js command tests', () => {
         setupTestEnvironment({ qmk_settings: settingsData });
         await sandbox.global.runGetQmkSetting("effect_speed", {});
 
-        assert.deepStrictEqual(consoleLogOutput, ["effect_speed: 2"]);
-        assert.strictEqual(consoleErrorOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.deepStrictEqual(testState.consoleLogOutput, ["effect_speed: 2"]);
+        assert.strictEqual(testState.consoleErrorOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should get QMK setting successfully from settings (fallback)', async () => {
@@ -97,9 +86,9 @@ describe('qmk_setting_get.js command tests', () => {
         setupTestEnvironment({ settings: settingsData, qmk_settings: undefined });
         await sandbox.global.runGetQmkSetting("legacy_mode", {});
 
-        assert.deepStrictEqual(consoleLogOutput, ["legacy_mode: true"]);
-        assert.strictEqual(consoleErrorOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.deepStrictEqual(testState.consoleLogOutput, ["legacy_mode: true"]);
+        assert.strictEqual(testState.consoleErrorOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if setting not found in qmk_settings', async () => {
@@ -108,9 +97,9 @@ describe('qmk_setting_get.js command tests', () => {
         const settingToGet = "non_existent_setting";
         await sandbox.global.runGetQmkSetting(settingToGet, {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: QMK setting "${settingToGet}" not found on this device.`)));
-        assert.strictEqual(consoleLogOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: QMK setting "${settingToGet}" not found on this device.`)));
+        assert.strictEqual(testState.consoleLogOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if setting not found in settings (fallback)', async () => {
@@ -119,59 +108,59 @@ describe('qmk_setting_get.js command tests', () => {
         const settingToGet = "missing_setting";
         await sandbox.global.runGetQmkSetting(settingToGet, {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes(`Error: QMK setting "${settingToGet}" not found on this device.`)));
-        assert.strictEqual(consoleLogOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: QMK setting "${settingToGet}" not found on this device.`)));
+        assert.strictEqual(testState.consoleLogOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if settings object itself is missing', async () => {
         setupTestEnvironment({ qmk_settings: undefined, settings: undefined });
         await sandbox.global.runGetQmkSetting("any_setting", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: QMK settings not available or not in an expected object format on this device.")));
-        assert.strictEqual(consoleLogOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: QMK settings not available or not in an expected object format on this device.")));
+        assert.strictEqual(testState.consoleLogOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if settings data is not an object', async () => {
         setupTestEnvironment({ qmk_settings: "this is a string" });
         await sandbox.global.runGetQmkSetting("any_setting", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: QMK settings not available or not in an expected object format on this device.")));
-        assert.strictEqual(consoleLogOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: QMK settings not available or not in an expected object format on this device.")));
+        assert.strictEqual(testState.consoleLogOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if setting name is null', async () => {
         setupTestEnvironment({ qmk_settings: { "brightness": "low" } });
         await sandbox.global.runGetQmkSetting(null, {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: QMK setting name must be provided and be a non-empty string.")));
-        assert.strictEqual(consoleLogOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: QMK setting name must be provided and be a non-empty string.")));
+        assert.strictEqual(testState.consoleLogOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if setting name is an empty string', async () => {
         setupTestEnvironment({ qmk_settings: { "brightness": "low" } });
         await sandbox.global.runGetQmkSetting("", {});
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: QMK setting name must be provided and be a non-empty string.")));
-        assert.strictEqual(consoleLogOutput.length, 0);
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: QMK setting name must be provided and be a non-empty string.")));
+        assert.strictEqual(testState.consoleLogOutput.length, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
         mockUsb.list = () => []; // Override for this test
         await sandbox.global.runGetQmkSetting("any_setting", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
         // Mock the openDeviceConnection to fail
         sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runGetQmkSetting("any_setting", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 });

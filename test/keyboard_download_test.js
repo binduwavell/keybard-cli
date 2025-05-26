@@ -1,6 +1,6 @@
 // test/test_download_file.js
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 describe('keyboard_download.js command tests', () => {
     let sandbox;
@@ -9,12 +9,7 @@ describe('keyboard_download.js command tests', () => {
     let mockFs;
     let mockPath;
     let mockKey;
-
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let consoleInfoOutput;
-    let consoleWarnOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spies
     let spyFsWriteFileSync;
@@ -75,11 +70,7 @@ describe('keyboard_download.js command tests', () => {
             ...(vialConfig.vialOverrides || {})
         };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        consoleInfoOutput = [];
-        consoleWarnOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb,
@@ -88,16 +79,10 @@ describe('keyboard_download.js command tests', () => {
             fs: mockFs,
             path: mockPath,
             runInitializers: () => {},
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleWarnOutput.push(args.join(' ')),
-                info: (...args) => consoleInfoOutput.push(args.join(' ')),
-            },
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/keyboard_download.js']);
     }
 
@@ -136,8 +121,8 @@ describe('keyboard_download.js command tests', () => {
         assert.deepStrictEqual(savedData.macros, mockData.macros);
         assert.deepStrictEqual(savedData.key_overrides, mockData.key_overrides);
         assert.deepStrictEqual(savedData.qmk_settings, mockData.qmk_settings);
-        assert.isTrue(consoleLogOutput.some(line => line.includes(`Device configuration successfully downloaded to ${filepath}`)));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes(`Device configuration successfully downloaded to ${filepath}`)));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should use numeric keycodes and warn if KEY.stringify is missing (numeric input)', async () => {
@@ -148,9 +133,9 @@ describe('keyboard_download.js command tests', () => {
         await sandbox.global.runDownloadFile("output.svl", {});
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
-        assert.isTrue(consoleWarnOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
         assert.deepStrictEqual(savedData.keymap[0], numericKeymap);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should use string keycodes and not warn if KEY.stringify is missing (string input)', async () => {
@@ -161,9 +146,9 @@ describe('keyboard_download.js command tests', () => {
         await sandbox.global.runDownloadFile("output.svl", {});
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
-        assert.isFalse(consoleWarnOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
+        assert.isFalse(testState.consoleErrorOutput.some(line => line.includes("Warning: KEY.stringify function not found.")));
         assert.deepStrictEqual(savedData.keymap[0], stringKeymap);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should handle minimal data (only settings) and warn for missing sections', async () => {
@@ -173,14 +158,14 @@ describe('keyboard_download.js command tests', () => {
 
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
-        assert.isTrue(consoleWarnOutput.some(line => line.includes("Warning: Keymap data or dimensions not found")));
-        assert.isTrue(consoleWarnOutput.some(line => line.includes("Warning: Macros data not found")));
-        assert.isTrue(consoleWarnOutput.some(line => line.includes("Warning: Key_overrides data not found")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Keymap data or dimensions not found")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Macros data not found")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Key_overrides data not found")));
         assert.isUndefined(savedData.keymap);
         assert.isUndefined(savedData.macros);
         assert.isUndefined(savedData.key_overrides);
         assert.deepStrictEqual(savedData.qmk_settings, mockData.qmk_settings);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should handle zero-size keymap correctly', async () => {
@@ -190,19 +175,19 @@ describe('keyboard_download.js command tests', () => {
         assert.ok(spyFsWriteFileSync);
         const savedData = JSON.parse(spyFsWriteFileSync.data);
         assert.deepStrictEqual(savedData.keymap, [[], []]);
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if filepath is missing', async () => {
         await sandbox.global.runDownloadFile(null, {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Filepath must be provided")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Filepath must be provided")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for invalid file extension (e.g., .txt)', async () => {
         await sandbox.global.runDownloadFile("output.txt", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Invalid filepath. Output file must have a .svl extension.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Invalid filepath. Output file must have a .svl extension.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if fs.writeFileSync throws', async () => {
@@ -212,29 +197,29 @@ describe('keyboard_download.js command tests', () => {
         });
         await sandbox.global.runDownloadFile("output.svl", {});
         assert.ok(spyFsWriteFileSync); // Should still be attempted
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error writing configuration to file \"output.svl\": Simulated fs.writeFileSync error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error writing configuration to file \"output.svl\": Simulated fs.writeFileSync error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
         setupTestEnvironment({ vialConfig: { usbOverrides: { list: () => [] } } });
         await sandbox.global.runDownloadFile("output.svl", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.load throws', async () => {
         setupTestEnvironment({ vialConfig: { loadThrows: true } });
         await sandbox.global.runDownloadFile("output.svl", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("An unexpected error occurred during download: Simulated Vial.load error")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("An unexpected error occurred during download: Simulated Vial.load error")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should warn if keymap data is incomplete (e.g., missing dimensions)', async () => {
         const mockData = { keymap: [[]] }; // layers/rows/cols will be undefined
         setupTestEnvironment({ mockKbinfoData: mockData });
         await sandbox.global.runDownloadFile("output.svl", {});
-        assert.isTrue(consoleWarnOutput.some(line => line.includes("Warning: Keymap data or dimensions not found in kbinfo.")));
-        assert.strictEqual(mockProcessExitCode, 0); // Should still proceed and output what it can
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: Keymap data or dimensions not found in kbinfo.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0); // Should still proceed and output what it can
     });
 });

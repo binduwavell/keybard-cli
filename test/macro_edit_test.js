@@ -1,5 +1,5 @@
 const { assert } = require('chai'); // Switched to Chai's assert
-const { createSandboxWithDeviceSelection, createMockUSBSingleDevice } = require('./test-helpers');
+const { createSandboxWithDeviceSelection, createMockUSBSingleDevice, createTestState } = require('./test-helpers');
 
 const MAX_MACRO_SLOTS_IN_TEST = 16;
 
@@ -10,9 +10,7 @@ describe('macro_edit.js command tests', () => {
     let mockVialMacro;
     let mockVialKb;
     let mockKey;
-    let consoleLogOutput;
-    let consoleErrorOutput;
-    let mockProcessExitCode;
+    let testState;
 
     // Spies
     let spyKeyParseCalls;
@@ -100,23 +98,16 @@ describe('macro_edit.js command tests', () => {
 
         mockKey = { parse: mockKeyParseImplementation };
 
-        consoleLogOutput = [];
-        consoleErrorOutput = [];
-        mockProcessExitCode = undefined;
+        testState = createTestState();
 
         sandbox = createSandboxWithDeviceSelection({
             USB: mockUsb, Vial: { ...mockVial, macro: mockVialMacro, kb: mockVialKb },
             KEY: mockKey, fs: {}, runInitializers: () => {},
             MAX_MACRO_SLOTS: MAX_MACRO_SLOTS_IN_TEST,
-            console: {
-                log: (...args) => consoleLogOutput.push(args.join(' ')),
-                error: (...args) => consoleErrorOutput.push(args.join(' ')),
-                warn: (...args) => consoleErrorOutput.push(args.join(' ')),
-            },
-            consoleLogOutput,
-            consoleErrorOutput,
-            mockProcessExitCode,
-            setMockProcessExitCode: (val) => { mockProcessExitCode = val; }
+            consoleLogOutput: testState.consoleLogOutput,
+            consoleErrorOutput: testState.consoleErrorOutput,
+            mockProcessExitCode: testState.mockProcessExitCode,
+            setMockProcessExitCode: testState.setMockProcessExitCode
         }, ['lib/macro_edit.js']);
     }
 
@@ -154,8 +145,8 @@ describe('macro_edit.js command tests', () => {
         assert.deepStrictEqual(otherMacro.actions, parsed_HelloDefault_actions, "Other macro (mid 1) was altered.");
 
         assert.isTrue(spyVialKbSaveMacrosCalled, "Vial.kb.saveMacros not called.");
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should clear macro actions if new sequence is empty and warn', async () => {
@@ -171,48 +162,48 @@ describe('macro_edit.js command tests', () => {
         assert.ok(editedMacro, "Edited macro (mid 0) not found.");
         assert.deepStrictEqual(editedMacro.actions, [], "Macro actions not cleared.");
 
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: New macro sequence is empty. This will clear the macro.")));
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: New macro sequence is empty. This will clear the macro.")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
     it('should error if macro ID to edit is not found', async () => {
         await sandbox.global.runEditMacro("99", "KC_A", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Macro with ID 99 not found. Cannot edit.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Macro with ID 99 not found. Cannot edit.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for non-numeric macro ID', async () => {
         await sandbox.global.runEditMacro("abc", "KC_A", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Invalid macro ID "abc"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Invalid macro ID "abc"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for negative macro ID', async () => {
         await sandbox.global.runEditMacro("-1", "KC_A", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Invalid macro ID "-1"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Invalid macro ID "-1"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if new macro sequence is invalid', async () => {
         await sandbox.global.runEditMacro("0", "KC_A,KC_INVALID", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes('Error parsing new macro sequence: Invalid key string or unknown action in macro sequence: "KC_INVALID"')));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing new macro sequence: Invalid key string or unknown action in macro sequence: "KC_INVALID"')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
         mockUsb.list = () => [];
         await sandbox.global.runEditMacro("0", "KC_A", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
         // Mock the openDeviceConnection to fail
         sandbox.global.deviceSelection.openDeviceConnection = async () => false;
         await sandbox.global.runEditMacro("0", "KC_A", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if Vial.load fails to populate macro data', async () => {
@@ -221,29 +212,29 @@ describe('macro_edit.js command tests', () => {
             kbinfoRef.macro_count = undefined;
         }});
         await sandbox.global.runEditMacro("0", "KC_A", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Error: Macro data not fully populated by Vial functions.")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Macro data not fully populated by Vial functions.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.macro.push', async () => {
         setupTestEnvironment({}, {}, { push: async () => { throw new Error("Push Failed"); } });
         await sandbox.global.runEditMacro("0", "KC_A", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Push Failed")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Push Failed")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.kb.saveMacros', async () => {
         setupTestEnvironment({}, {}, {}, { saveMacros: async () => { throw new Error("Save Failed"); } });
         await sandbox.global.runEditMacro("0", "KC_A", {});
-        assert.isTrue(consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Save Failed")));
-        assert.strictEqual(mockProcessExitCode, 1);
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Save Failed")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should warn if Vial.kb.saveMacros is missing', async () => {
         setupTestEnvironment({}, {}, {}, { saveMacros: undefined });
         await sandbox.global.runEditMacro("0", "KC_X", {});
-        assert.isTrue(consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
-        assert.isTrue(consoleErrorOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found.")));
-        assert.strictEqual(mockProcessExitCode, 0);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Macro 0 updated successfully.")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Warning: No explicit macro save function (Vial.kb.saveMacros) found.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 });
