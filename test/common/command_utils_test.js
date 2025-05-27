@@ -4,7 +4,7 @@ const {
     createTestState,
     loadScriptInContext,
     createMockUSBNoDevices
-} = require('./test-helpers');
+} = require('../test-helpers');
 
 describe('command-utils.js tests', () => {
     let sandbox;

@@ -4,12 +4,12 @@ const {
     assertErrorMessage,
     assertLogMessage,
     createMockUSBNoDevices
-} = require('./test-helpers');
+} = require('../test-helpers');
 
 // Mock debug function for testing
 global.debug = () => () => {};
 
-const deviceSelection = require('../lib/common/device-selection');
+const deviceSelection = require('../../lib/common/device-selection');
 
 describe('device-selection.js tests', () => {
     let testState;
