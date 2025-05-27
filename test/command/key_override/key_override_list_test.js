@@ -86,8 +86,8 @@ describe('key_overrides_list.js command tests', () => {
 
         assert.strictEqual(testState.mockProcessExitCode, 0);
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Found 2 active key override(s) (total slots: 16):')));
-        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
-        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B (enabled)')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D (enabled)')));
     });
 
     it('should list key overrides in JSON format to console', async () => {
@@ -108,6 +108,17 @@ describe('key_overrides_list.js command tests', () => {
         assert.strictEqual(parsedOutput[0].override_key, "KC_B");
         assert.strictEqual(parsedOutput[0].trigger_key_str, "KC_A");
         assert.strictEqual(parsedOutput[0].override_key_str, "KC_B");
+        // Check new fields
+        assert.strictEqual(parsedOutput[0].layers, 0xFFFF);
+        assert.strictEqual(parsedOutput[0].layer_names, "all");
+        assert.strictEqual(parsedOutput[0].trigger_mods, 0);
+        assert.strictEqual(parsedOutput[0].trigger_mod_names, "");
+        assert.strictEqual(parsedOutput[0].negative_mod_mask, 0);
+        assert.strictEqual(parsedOutput[0].negative_mod_names, "");
+        assert.strictEqual(parsedOutput[0].suppressed_mods, 0);
+        assert.strictEqual(parsedOutput[0].suppressed_mod_names, "");
+        assert.strictEqual(parsedOutput[0].options, 0x80);
+        assert.strictEqual(parsedOutput[0].enabled, true);
     });
 
     it('should handle key overrides without explicit IDs (use index)', async () => {
@@ -120,8 +131,8 @@ describe('key_overrides_list.js command tests', () => {
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
         assert.strictEqual(testState.mockProcessExitCode, 0);
-        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B')));
-        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B (enabled)')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D (enabled)')));
     });
 
     it('should sort key overrides by ID for consistent output', async () => {
@@ -135,9 +146,9 @@ describe('key_overrides_list.js command tests', () => {
         await sandbox.global.runListKeyOverrides({ format: 'text' });
 
         const output = testState.consoleLogOutput.join('\n');
-        const override0Index = output.indexOf('Override 0: KC_A -> KC_B');
-        const override1Index = output.indexOf('Override 1: KC_Z -> KC_CAPS');
-        const override2Index = output.indexOf('Override 2: KC_C -> KC_D');
+        const override0Index = output.indexOf('Override 0: KC_A -> KC_B (enabled)');
+        const override1Index = output.indexOf('Override 1: KC_Z -> KC_CAPS (enabled)');
+        const override2Index = output.indexOf('Override 2: KC_C -> KC_D (enabled)');
 
         assert.isTrue(override0Index < override1Index);
         assert.isTrue(override1Index < override2Index);
@@ -160,7 +171,7 @@ describe('key_overrides_list.js command tests', () => {
         assert.strictEqual(testState.mockProcessExitCode, 0);
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Key override list written to /tmp/test.txt')));
         assert.isTrue(writtenContent.includes('Found 1 active key override(s)'));
-        assert.isTrue(writtenContent.includes('Override 0: KC_A -> KC_B'));
+        assert.isTrue(writtenContent.includes('Override 0: KC_A -> KC_B (enabled)'));
     });
 
     it('should write key overrides to file in JSON format', async () => {
