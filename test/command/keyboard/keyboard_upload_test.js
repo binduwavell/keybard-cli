@@ -107,6 +107,7 @@ describe('keyboard_upload.js command tests', () => {
             kb: {},
             macro: {},
             keyoverride: {},
+            key_override: {},
             combo: {},
             tapdance: {},
             qmkSettings: {},
@@ -140,9 +141,10 @@ describe('keyboard_upload.js command tests', () => {
         }
 
         if (vialConfig.hasKeyOverridePush) {
-            mockVial.keyoverride.push = async (kbinfo) => {
+            mockVial.key_override.push = async (kbinfo, koid) => {
                 spyVialKeyOverridePush = JSON.parse(JSON.stringify(kbinfo));
-                if (vialConfig.keyOverridePushThrows) throw new Error("Simulated keyoverride.push error");
+                spyVialKeyOverridePushKoid = koid;
+                if (vialConfig.keyOverridePushThrows) throw new Error("Simulated key_override.push error");
             };
         }
 
@@ -618,7 +620,7 @@ describe('keyboard_upload.js command tests', () => {
 
             await sandbox.global.runUploadFile("test.svl", {});
 
-            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("key_overrides: skipped (Vial.keyoverride.push or Vial.kb not available.)")));
+            assert.isTrue(testState.consoleLogOutput.some(line => line.includes("key_overrides: skipped (Vial.key_override.push or Vial.kb not available.)")));
             assert.strictEqual(testState.mockProcessExitCode, 0);
         });
     });
@@ -938,7 +940,7 @@ describe('keyboard_upload.js command tests', () => {
 
             assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Keymap data found in .kbi but Vial.api.updateKey not available")));
             assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Macro data found in .kbi but Vial.macro.push not available")));
-            assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Key override data found in .kbi but Vial.keyoverride.push not available")));
+            assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Key override data found in .kbi but Vial.key_override.push not available")));
             assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("QMK settings found in .kbi but no settings could be applied")));
             assert.isTrue(testState.consoleLogOutput.some(line => line.includes(".kbi content: partial (0/4 sections succeeded)")));
             assert.strictEqual(testState.mockProcessExitCode, 1);
