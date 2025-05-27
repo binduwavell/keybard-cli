@@ -59,6 +59,8 @@ describe('keyboard_upload.js command tests', () => {
         spyVialApiUpdateKeyCalls = [];
         spyVialMacroPush = null;
         spyVialKeyOverridePush = null;
+        spyVialComboPush = [];
+        spyVialTapdancePush = [];
         spyVialSetQmkSetting = [];
         spyVialKbSetQmkSetting = [];
         spyVialQmkSettingsPush = null;
@@ -67,6 +69,7 @@ describe('keyboard_upload.js command tests', () => {
         spyVialKbSaveKeyOverrides = false;
         spyVialKbSaveQmkSettings = false;
         spyVialKbSaveSettings = false;
+        spyVialKbSaveTapDances = false;
         spyVialKbSave = false;
         spyKeyParseCalls = [];
 
@@ -104,6 +107,8 @@ describe('keyboard_upload.js command tests', () => {
             kb: {},
             macro: {},
             keyoverride: {},
+            combo: {},
+            tapdance: {},
             qmkSettings: {},
             settings: {}
         };
@@ -138,6 +143,20 @@ describe('keyboard_upload.js command tests', () => {
             mockVial.keyoverride.push = async (kbinfo) => {
                 spyVialKeyOverridePush = JSON.parse(JSON.stringify(kbinfo));
                 if (vialConfig.keyOverridePushThrows) throw new Error("Simulated keyoverride.push error");
+            };
+        }
+
+        if (vialConfig.hasComboPush) {
+            mockVial.combo.push = async (kbinfo, comboId) => {
+                spyVialComboPush.push({ kbinfo: JSON.parse(JSON.stringify(kbinfo)), comboId });
+                if (vialConfig.comboPushThrows) throw new Error("Simulated combo.push error");
+            };
+        }
+
+        if (vialConfig.hasTapdancePush) {
+            mockVial.tapdance.push = async (kbinfo, tdid) => {
+                spyVialTapdancePush.push({ kbinfo: JSON.parse(JSON.stringify(kbinfo)), tdid });
+                if (vialConfig.tapdancePushThrows) throw new Error("Simulated tapdance.push error");
             };
         }
 
@@ -196,6 +215,13 @@ describe('keyboard_upload.js command tests', () => {
             mockVial.kb.saveSettings = async () => {
                 spyVialKbSaveSettings = true;
                 if (vialConfig.saveSettingsThrows) throw new Error("Simulated saveSettings error");
+            };
+        }
+
+        if (vialConfig.hasKbSaveTapDances) {
+            mockVial.kb.saveTapDances = async () => {
+                spyVialKbSaveTapDances = true;
+                if (vialConfig.saveTapDancesThrows) throw new Error("Simulated saveTapDances error");
             };
         }
 
@@ -1103,7 +1129,76 @@ describe('keyboard_upload.js command tests', () => {
                 assert.strictEqual(testState.mockProcessExitCode, 1);
             });
 
-            it('should accept .kbi file with valid complete structure', async () => {
+            it('should reject .kbi file with invalid tapdance structure (not object)', async () => {
+                const kbiData = { layers: 2, tapdances: ["not an object"] };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: tapdance 0 must be an object")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with tapdance missing required properties', async () => {
+                const kbiData = { layers: 2, tapdances: [{ tap: "KC_A" }] }; // Missing hold, doubletap, taphold, tapms
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: tapdance 0 missing required property")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid tapdance tapms (negative)', async () => {
+                const kbiData = {
+                    layers: 2,
+                    tapdances: [{
+                        tap: "KC_A",
+                        hold: "KC_B",
+                        doubletap: "KC_C",
+                        taphold: "KC_D",
+                        tapms: -1
+                    }]
+                };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: tapdance 0 tapms must be a non-negative number")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid combo structure (not array)', async () => {
+                const kbiData = { layers: 2, combos: [{ not: "an array" }] };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: combo 0 must be an array")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with combo wrong length', async () => {
+                const kbiData = { layers: 2, combos: [["KC_A", "KC_B"]] }; // Should have 5 elements
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: combo 0 must have exactly 5 elements")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should accept .kbi file with valid complete structure including combos and tapdances', async () => {
                 const kbiData = {
                     layers: 2,
                     rows: 6,
@@ -1112,8 +1207,15 @@ describe('keyboard_upload.js command tests', () => {
                     macros: [{ mid: 0, actions: [] }],
                     key_overrides: [{ koid: 0, trigger_key: 200, override_key: 201 }],
                     qmk_settings: { "brightness": 100 },
-                    tapdances: [{ tid: 0, actions: [] }],
-                    combos: [{ cid: 0, keys: [] }]
+                    tapdances: [{
+                        tdid: 0,
+                        tap: "KC_A",
+                        hold: "KC_B",
+                        doubletap: "KC_C",
+                        taphold: "KC_D",
+                        tapms: 200
+                    }],
+                    combos: [["KC_A", "KC_B", "KC_NO", "KC_NO", "KC_C"]]
                 };
                 setupTestEnvironment({
                     mockKbinfoData: { layers: 2, rows: 6, cols: 15 },
@@ -1124,16 +1226,19 @@ describe('keyboard_upload.js command tests', () => {
                         hasKeyOverridePush: true,
                         hasKbSaveKeyOverrides: true,
                         hasSetQmkSetting: true,
-                        hasKbSaveQmkSettings: true
+                        hasKbSaveQmkSettings: true,
+                        hasComboPush: true,
+                        hasTapdancePush: true,
+                        hasKbSaveTapDances: true
                     }
                 });
 
                 await sandbox.global.runUploadFile("complete.kbi", {});
 
                 assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("✓ .kbi file structure validation passed")));
-                // The test should pass validation, but may have partial success due to missing upload functions for some sections
-                // We just want to verify that validation passes, not that all uploads succeed
-                assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("✓ .kbi file structure validation passed")));
+                // Verify that combos and tapdances sections are processed
+                assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("Uploading combos from .kbi file")));
+                assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("Uploading tapdances from .kbi file")));
             });
         });
     });
