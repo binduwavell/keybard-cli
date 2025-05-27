@@ -1,0 +1,33 @@
+# CLI Command Structure
+- User prefers CLI command structure where resource comes first followed by action (e.g., 'combo get' instead of 'get combo') to enable better command grouping with subcommands.
+
+# CLI Command Development
+- Avoid using require() in command files that are loaded into VM sandbox contexts - instead perform requirements in cli.js and add them to the sandbox object.
+
+# Keybard Submodule
+- The @keybard/ submodule is read-only and cannot be modified - solutions must work with the existing data structures it provides.
+- Make sure to include helpful debug logging in all commands in the event there is a problem the debug should help identify the issue.
+
+# QMK Settings
+- User prefers QMK settings to be displayed and accessed by setting name rather than numeric index for better usability.
+
+# Preferences
+- User prefers to work through TODO tasks systematically, creating scripts for bulk changes when possible, completing one task at a time when scripting isn't feasible, running npm test after each task completion, and marking tasks complete in TODO.md before proceeding to the next incomplete task.
+
+# Testing
+## General
+- All CLI code should be accompanied by corresponding unit tests.
+- User expects tests to be written for utility modules in lib/common/.
+- User wants existing broken tests to be fixed.
+
+## Test Implementation
+- User prefers testing CLI commands directly with mocks rather than using execSync, as it's more reliable and allows better control over test conditions.
+- User prefers that unit tests should use VM sandbox mocking rather than integration tests with execSync.
+- User prefers to use @test/test-helpers.js when fixing or writing tests.
+- The combo_add_test.js file serves as a good example of how to properly use the new test utilities when refactoring tests.
+- User prefers to deprecate direct VM context creation in tests in favor of test helpers, wants additional helper functions like createMockPath(), and expects documentation updates to reflect preferred testing patterns.
+- User prefers to spread testState into createSandboxWithDeviceSelection config objects rather than specifying individual properties like console: testState.console for cleaner test code.
+
+## Test Environment
+- User prefers to test CLI commands on the Svalboard (device index 1) rather than the Atrius due to device-specific issues not related to the codebase.
+- User prefers to restore original state after making changes during testing - if something is modified during tests, it should be changed back to its original value.

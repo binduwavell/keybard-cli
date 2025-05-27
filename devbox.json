@@ -1,9 +1,11 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.10.7/.schema/devbox.schema.json",
-  "packages": [
+  "packagesX": [
     "libusb1",
-    "nodejs@22",
     "udev"
+  ],
+  "packages": [
+    "nodejs@22"
   ],
   "shell": {
     "init_hook": [
