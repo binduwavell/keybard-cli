@@ -21,10 +21,11 @@
 - [x] Consider updating `keyboard upload` to make `.kbi` the default format (Decision: Keep current explicit format selection via file extension - no breaking changes needed)
 - [x] Update `keyboard upload` tests to validate uploading `.kbi` files
 - [x] Update @README.md to reflect the changes above
-- [ ] `keyboard upload` should validate that the file being uploaded is a valid `.kbi` file and provide a helpful error message if it is not
+- [x] `keyboard upload` should validate that the file being uploaded is a valid `.kbi` file and provide a helpful error message if it is not
 - [ ] `keyboard upload` should not console log `updating [ #, #, # ] ###` this should be a debug statement at most
-- [ ] `keyboard upload` with a `.kbi` must upload combos, key-overrides, tapdances or qmk-settings
-  - You may test with `~/Downloads/keyboard-prom.kbi` as this is a valid `.kbi` file for my svalboard (device 1)
+- [ ] `keyboard upload` with a `.kbi` must upload combos, key-overrides, tapdances and qmk-settings in addition to the items it current uploads
+  - You may test uploading `keyboard upload -d 1 ~/Downloads/keyboard-prom.kbi`
+  - After uploading, you can `keyboard download -d 1 /tmp/backup.kbi` and compare the files. The keys may not be in the same order, so you may want to use something like `jq` to sort the keys before comparing the files. There may be some expected differences due to the way the CLI handles key-override and combo parsing so be open minded and ask me for input.
 
 # key-override commands
 

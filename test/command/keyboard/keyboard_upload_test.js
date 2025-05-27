@@ -844,6 +844,7 @@ describe('keyboard_upload.js command tests', () => {
 
         it('should handle partial success in .kbi file upload', async () => {
             const kbiData = {
+                layers: 1, // Add required dimension
                 keymap: [["KC_A"]],
                 macros: [{ mid: 0, actions: [] }]
             };
@@ -874,7 +875,10 @@ describe('keyboard_upload.js command tests', () => {
         });
 
         it('should handle error during .kbi processing', async () => {
-            const kbiData = { keymap: [["KC_A"]] };
+            const kbiData = {
+                layers: 1, // Add required dimension
+                keymap: [["KC_A"]]
+            };
             setupTestEnvironment({
                 mockKbinfoData: { layers: 1, rows: 1, cols: 1 },
                 fileConfig: { path: 'error.kbi', content: JSON.stringify(kbiData) },
@@ -890,6 +894,7 @@ describe('keyboard_upload.js command tests', () => {
 
         it('should warn when .kbi has data but no upload functions available', async () => {
             const kbiData = {
+                layers: 2, // Add required dimension
                 keymap: [["KC_A"]],
                 macros: [{ mid: 0, actions: [] }],
                 key_overrides: [{ koid: 0, trigger_key: 200, override_key: 201 }],
@@ -911,6 +916,225 @@ describe('keyboard_upload.js command tests', () => {
             assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("QMK settings found in .kbi but no settings could be applied")));
             assert.isTrue(testState.consoleLogOutput.some(line => line.includes(".kbi content: partial (0/4 sections succeeded)")));
             assert.strictEqual(testState.mockProcessExitCode, 1);
+        });
+
+        // .kbi file validation tests
+        describe('.kbi file validation', () => {
+            it('should validate and accept a minimal valid .kbi file with layers', async () => {
+                const kbiData = { layers: 2 };
+                setupTestEnvironment({
+                    fileConfig: { path: 'minimal.kbi', content: JSON.stringify(kbiData) },
+                    vialConfig: {}
+                });
+
+                await sandbox.global.runUploadFile("minimal.kbi", {});
+
+                assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("✓ .kbi file structure validation passed")));
+                assert.strictEqual(testState.mockProcessExitCode, 0);
+            });
+
+            it('should validate and accept a minimal valid .kbi file with rows', async () => {
+                const kbiData = { rows: 6 };
+                setupTestEnvironment({
+                    fileConfig: { path: 'minimal.kbi', content: JSON.stringify(kbiData) },
+                    vialConfig: {}
+                });
+
+                await sandbox.global.runUploadFile("minimal.kbi", {});
+
+                assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("✓ .kbi file structure validation passed")));
+                assert.strictEqual(testState.mockProcessExitCode, 0);
+            });
+
+            it('should validate and accept a minimal valid .kbi file with cols', async () => {
+                const kbiData = { cols: 15 };
+                setupTestEnvironment({
+                    fileConfig: { path: 'minimal.kbi', content: JSON.stringify(kbiData) },
+                    vialConfig: {}
+                });
+
+                await sandbox.global.runUploadFile("minimal.kbi", {});
+
+                assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("✓ .kbi file structure validation passed")));
+                assert.strictEqual(testState.mockProcessExitCode, 0);
+            });
+
+            it('should reject .kbi file that is not a JSON object (array)', async () => {
+                const kbiData = [1, 2, 3];
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: must contain a JSON object")));
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("The file does not appear to be a valid .kbi")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file that is not a JSON object (null)', async () => {
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: 'null' }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: must contain a JSON object")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with no keyboard dimensions', async () => {
+                const kbiData = { some_field: "value", another_field: 123 };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: must contain at least one valid keyboard dimension")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with negative keyboard dimensions', async () => {
+                const kbiData = { layers: -1, rows: 6, cols: 15 };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: keyboard dimensions (layers, rows, cols) must be non-negative numbers")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid keymap structure (not array)', async () => {
+                const kbiData = { layers: 2, keymap: "not an array" };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: keymap must be an array")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid keymap layer structure', async () => {
+                const kbiData = { layers: 2, keymap: ["not an array", ["KC_A"]] };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: keymap layer 0 must be an array")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid macros structure', async () => {
+                const kbiData = { layers: 2, macros: "not an array" };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: macros must be an array")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid key_overrides structure', async () => {
+                const kbiData = { layers: 2, key_overrides: "not an array" };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: key_overrides must be an array")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid qmk_settings structure (array)', async () => {
+                const kbiData = { layers: 2, qmk_settings: ["not", "an", "object"] };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: qmk_settings must be an object")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid settings structure', async () => {
+                const kbiData = { layers: 2, settings: "not an object" };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: settings must be an object")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid tapdances structure', async () => {
+                const kbiData = { layers: 2, tapdances: "not an array" };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: tapdances must be an array")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should reject .kbi file with invalid combos structure', async () => {
+                const kbiData = { layers: 2, combos: "not an array" };
+                setupTestEnvironment({
+                    fileConfig: { path: 'invalid.kbi', content: JSON.stringify(kbiData) }
+                });
+
+                await sandbox.global.runUploadFile("invalid.kbi", {});
+
+                assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Invalid .kbi file: combos must be an array")));
+                assert.strictEqual(testState.mockProcessExitCode, 1);
+            });
+
+            it('should accept .kbi file with valid complete structure', async () => {
+                const kbiData = {
+                    layers: 2,
+                    rows: 6,
+                    cols: 15,
+                    keymap: [["KC_A", "KC_B"], ["KC_C", "KC_D"]],
+                    macros: [{ mid: 0, actions: [] }],
+                    key_overrides: [{ koid: 0, trigger_key: 200, override_key: 201 }],
+                    qmk_settings: { "brightness": 100 },
+                    tapdances: [{ tid: 0, actions: [] }],
+                    combos: [{ cid: 0, keys: [] }]
+                };
+                setupTestEnvironment({
+                    mockKbinfoData: { layers: 2, rows: 6, cols: 15 },
+                    fileConfig: { path: 'complete.kbi', content: JSON.stringify(kbiData) },
+                    vialConfig: {
+                        hasMacroPush: true,
+                        hasKbSaveMacros: true,
+                        hasKeyOverridePush: true,
+                        hasKbSaveKeyOverrides: true,
+                        hasSetQmkSetting: true,
+                        hasKbSaveQmkSettings: true
+                    }
+                });
+
+                await sandbox.global.runUploadFile("complete.kbi", {});
+
+                assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("✓ .kbi file structure validation passed")));
+                // The test should pass validation, but may have partial success due to missing upload functions for some sections
+                // We just want to verify that validation passes, not that all uploads succeed
+                assert.isTrue(testState.consoleInfoOutput.some(line => line.includes("✓ .kbi file structure validation passed")));
+            });
         });
     });
 });
