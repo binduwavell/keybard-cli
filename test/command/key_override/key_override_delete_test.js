@@ -92,7 +92,7 @@ describe('key_override_delete.js command tests', () => {
         setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
 
         const idToDelete = 1;
-        await sandbox.global.runDeleteKeyOverride(idToDelete.toString(), {});
+        await sandbox.global.runDeleteKeyOverride([idToDelete.toString()], { yes: true }); // Skip confirmation
 
         assert.ok(spyVialKeyOverridePushKbinfo, "Vial.key_override.push was not called");
         assert.strictEqual(spyVialKeyOverridePushKoid, idToDelete, "Vial.key_override.push was not called with correct koid");
@@ -111,53 +111,151 @@ describe('key_override_delete.js command tests', () => {
         assert.strictEqual(testState.mockProcessExitCode, 0);
     });
 
+    it('should delete multiple key overrides successfully', async () => {
+        const initialOverridesData = [
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
+            { koid: 1, trigger: "KC_X", replacement: "KC_Y", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },
+            { koid: 2, trigger: "KC_C", replacement: "KC_D", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }
+        ];
+        setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
+
+        await sandbox.global.runDeleteKeyOverride(['0', '2'], { yes: true }); // Skip confirmation
+
+        // Check that both overrides were deleted
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("2 key overrides successfully deleted (IDs: 0, 2)")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should delete all disabled key overrides', async () => {
+        const initialOverridesData = [
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }, // Enabled
+            { koid: 1, trigger: "KC_X", replacement: "KC_Y", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x00 }, // Disabled
+            { koid: 2, trigger: "KC_C", replacement: "KC_D", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x00 }  // Disabled
+        ];
+        setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
+
+        await sandbox.global.runDeleteKeyOverride([], { allDisabled: true, yes: true });
+
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("2 key overrides successfully deleted (IDs: 1, 2)")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should delete all empty key overrides', async () => {
+        const initialOverridesData = [
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }, // Valid
+            { koid: 1, trigger: "KC_NO", replacement: "KC_NO", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }, // Empty
+            { koid: 2, trigger: "KC_C", replacement: "KC_NO", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }  // Empty (invalid replacement)
+        ];
+        setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
+
+        await sandbox.global.runDeleteKeyOverride([], { allEmpty: true, yes: true });
+
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("2 key overrides successfully deleted (IDs: 1, 2)")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should show verbose details when requested', async () => {
+        const initialOverridesData = [
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0x0003, trigger_mods: 0x01, negative_mod_mask: 0x02, suppressed_mods: 0x04, options: 0x81 }
+        ];
+        setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
+
+        await sandbox.global.runDeleteKeyOverride(['0'], { yes: true, verbose: true });
+
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Override 0: KC_A -> KC_B (enabled)")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Layers: 0, 1")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Trigger modifiers: LCTL")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Negative modifiers: LSFT")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Suppressed modifiers: LALT")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Options: 0x81")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should abort deletion without --yes flag', async () => {
+        const initialOverridesData = [
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }
+        ];
+        setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
+
+        await sandbox.global.runDeleteKeyOverride(['0'], {}); // No --yes flag
+
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Are you sure you want to delete these key overrides?")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Aborting deletion. Use --yes flag to skip this confirmation.")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
+    });
+
+    it('should handle no disabled overrides found', async () => {
+        const initialOverridesData = [
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 } // All enabled
+        ];
+        setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
+
+        await sandbox.global.runDeleteKeyOverride([], { allDisabled: true });
+
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("No disabled key overrides found to delete.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should handle no empty overrides found', async () => {
+        const initialOverridesData = [
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 } // All valid
+        ];
+        setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
+
+        await sandbox.global.runDeleteKeyOverride([], { allEmpty: true });
+
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("No empty key overrides found to delete.")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
     it('should error if key override ID to delete is not found', async () => {
         const initialOverridesData = [
-            { koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B") }
+            { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 }
         ];
         setupTestEnvironment({ key_overrides: initialOverridesData, key_override_count: MAX_KEY_OVERRIDE_SLOTS_IN_TEST });
         const idToDelete = 1;
-        await sandbox.global.runDeleteKeyOverride(idToDelete.toString(), {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: Key override with ID ${idToDelete} not found or not active. Cannot delete.`)));
+        await sandbox.global.runDeleteKeyOverride([idToDelete.toString()], {});
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: ID ${idToDelete} not found or not active`)));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if key override ID is out of bounds', async () => {
         setupTestEnvironment({ key_overrides: [], key_override_count: 0 });
         const idToDelete = 0;
-        await sandbox.global.runDeleteKeyOverride(idToDelete.toString(), {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: Key override ID ${idToDelete} is out of bounds. Maximum ID is -1.`)));
+        await sandbox.global.runDeleteKeyOverride([idToDelete.toString()], {});
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes(`Error: ID ${idToDelete} is out of bounds (max: -1)`)));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for non-numeric key override ID', async () => {
-        await sandbox.global.runDeleteKeyOverride("abc", {});
+        await sandbox.global.runDeleteKeyOverride(["abc"], {});
         assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid key override ID "abc". Must be a non-negative integer.')));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error for negative key override ID', async () => {
-        await sandbox.global.runDeleteKeyOverride("-1", {});
+        await sandbox.global.runDeleteKeyOverride(["-1"], {});
         assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid key override ID "-1". Must be a non-negative integer.')));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
-    it('should error if key override ID is missing', async () => {
-        await sandbox.global.runDeleteKeyOverride(null, {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Key override ID must be provided.")));
+    it('should error if no IDs provided and no batch flags', async () => {
+        await sandbox.global.runDeleteKeyOverride([], {});
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: At least one key override ID must be provided, or use --all-disabled/--all-empty flags.")));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if no compatible device is found', async () => {
-        mockUsb.list = () => [];
-        await sandbox.global.runDeleteKeyOverride("0", {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("No compatible keyboard found.")));
+        // Mock the device selection to fail
+        sandbox.global.deviceSelection.getAndSelectDevice = () => ({ success: false });
+        await sandbox.global.runDeleteKeyOverride(["0"], {});
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if USB open fails', async () => {
-        mockUsb.open = async () => false;
-        await sandbox.global.runDeleteKeyOverride("0", {});
+        // Mock the device connection to fail
+        sandbox.global.deviceSelection.openDeviceConnection = async () => false;
+        await sandbox.global.runDeleteKeyOverride(["0"], {});
         assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Could not open USB device.")));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
@@ -168,35 +266,35 @@ describe('key_override_delete.js command tests', () => {
                 Object.assign(kbinfoRef, { macros: [], macro_count: 0 }); // Missing key_override_count/key_overrides
             }
         });
-        await sandbox.global.runDeleteKeyOverride("0", {});
+        await sandbox.global.runDeleteKeyOverride(["0"], {});
         assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Key override data not fully populated by Vial functions.")));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.keyoverride.push', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]}, {}, {
             push: async () => { throw new Error("Simulated Push Error"); }
         });
-        await sandbox.global.runDeleteKeyOverride("0", {});
+        await sandbox.global.runDeleteKeyOverride(["0"], { yes: true });
         assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Push Error")));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should handle error during Vial.kb.saveKeyOverrides', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, {
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]}, {}, {}, {
             saveKeyOverrides: async () => { throw new Error("Simulated Save Error"); }
         });
-        await sandbox.global.runDeleteKeyOverride("0", {});
+        await sandbox.global.runDeleteKeyOverride(["0"], { yes: true });
         assert.isTrue(testState.consoleErrorOutput.some(line => line.startsWith("An unexpected error occurred: Simulated Save Error")));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should use Vial.kb.save if saveKeyOverrides is missing and log debug', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, {
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]}, {}, {}, {
             saveKeyOverrides: undefined,
             save: async () => { spyVialKbSaveKeyOverridesCalled = true; }
         });
-        await sandbox.global.runDeleteKeyOverride("0", {});
+        await sandbox.global.runDeleteKeyOverride(["0"], { yes: true });
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
         // Debug messages now use debug library instead of console.log
         assert.isTrue(spyVialKbSaveKeyOverridesCalled);
@@ -204,11 +302,11 @@ describe('key_override_delete.js command tests', () => {
     });
 
     it('should warn if no save function (saveKeyOverrides or save) is found', async () => {
-        setupTestEnvironment({ key_overrides: [{koid: 0, trigger_key: mockKey.parse("KC_A"), override_key: mockKey.parse("KC_B")}]}, {}, {}, {
+        setupTestEnvironment({ key_overrides: [{koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80}]}, {}, {}, {
             saveKeyOverrides: undefined,
             save: undefined
         });
-        await sandbox.global.runDeleteKeyOverride("0", {});
+        await sandbox.global.runDeleteKeyOverride(["0"], { yes: true });
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override ID 0 successfully deleted")));
         assert.isTrue(testState.consoleWarnOutput.some(line => line.includes("Warning: No explicit save function (Vial.kb.saveKeyOverrides or Vial.kb.save) found.")));
         assert.isFalse(spyVialKbSaveKeyOverridesCalled);

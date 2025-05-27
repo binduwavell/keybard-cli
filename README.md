@@ -440,29 +440,41 @@ Delete a combo by its ID (disables it and clears keys/term).
 
 ## Key Override Commands
 
-The `key-override` command group manages key behavior overrides.
+The `key-override` command group manages key behavior overrides with comprehensive configuration options including layers, modifiers, and advanced settings.
 
 ### `key-override list`
 
-List all key overrides from the keyboard.
+List all key overrides defined on the keyboard with detailed information.
 
 **Usage:**
 ```bash
 ./keybard-cli.js key-override list
-./keybard-cli.js key-override list -f json
+./keybard-cli.js key-override list --format json
+./keybard-cli.js key-override list --output overrides.json
 ```
 
 **Options:**
 - `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
-- `-o, --output <filepath>`: Save key override list to file
+- `-o, --output <filepath>`: Save key override data to file
+
+**Output Information:**
+- Override ID and key mapping (trigger key → override key)
+- Enabled/disabled status
+- Layer restrictions (if not set to "all layers")
+- Trigger modifiers (modifiers that must be pressed)
+- Negative modifiers (modifiers that must not be pressed)
+- Suppressed modifiers (modifiers that won't be sent)
+- Additional options (as hexadecimal value)
 
 ### `key-override get`
 
-View a specific key override by its ID/index.
+View a specific key override by its ID with complete configuration details.
 
 **Usage:**
 ```bash
 ./keybard-cli.js key-override get 0
+./keybard-cli.js key-override get 0 --format json
+./keybard-cli.js key-override get 0 --output override_0.json
 ```
 
 **Arguments:**
@@ -472,47 +484,123 @@ View a specific key override by its ID/index.
 - `-f, --format <format>`: Output format (`json` or `text`, default: `text`)
 - `-o, --output <filepath>`: Save key override data to file
 
+**Output Information:**
+- Complete key override configuration including all modifiers, layers, and options
+- Same detailed format as the list command but for a single override
+
 ### `key-override add`
 
-Add a new key override to make one key behave as another.
+Add a new key override with comprehensive configuration options.
 
 **Usage:**
 ```bash
+# Basic key override
 ./keybard-cli.js key-override add KC_A KC_B
-./keybard-cli.js key-override add KC_CAPS KC_ESC
+
+# Key override with specific layers and modifiers
+./keybard-cli.js key-override add KC_A KC_B --layers 0x0003 --trigger-mods 0x01
+
+# Key override from JSON
+./keybard-cli.js key-override add --json '{"trigger_key":"KC_A","override_key":"KC_B","layers":3,"trigger_mods":1,"enabled":true}'
+
+# Disabled key override
+./keybard-cli.js key-override add KC_CAPS KC_ESC --disabled
 ```
 
 **Arguments:**
-- `<trigger_key_string>`: Key that triggers the override
-- `<override_key_string>`: Key behavior to apply
+- `[trigger_key_string]`: Key that triggers the override (optional if using --json)
+- `[override_key_string]`: Key behavior to apply (optional if using --json)
 
-**Example:** `KC_A KC_B` makes the A key behave as the B key
+**Options:**
+- `-j, --json <json_string>`: JSON object with complete key override configuration
+- `-l, --layers <layers>`: Layer mask (hex or decimal, e.g., 0x0003 for layers 0,1, default: 0xFFFF)
+- `-t, --trigger-mods <mods>`: Trigger modifiers mask (hex or decimal, default: 0)
+- `-n, --negative-mods <mods>`: Negative modifiers mask (hex or decimal, default: 0)
+- `-s, --suppressed-mods <mods>`: Suppressed modifiers mask (hex or decimal, default: 0)
+- `-o, --options <options>`: Options mask (hex or decimal, 0x80=enabled, default: 0x80)
+- `--disabled`: Create the key override in disabled state
+
+**Modifier Masks (can be combined with +):**
+- LCTL=0x01, LSFT=0x02, LALT=0x04, LGUI=0x08
+- RCTL=0x10, RSFT=0x20, RALT=0x40, RGUI=0x80
+
+**JSON Input:** Accepts the same format as `list --format json` output, making it easy to copy and modify existing configurations.
 
 ### `key-override edit`
 
-Edit an existing key override by ID.
+Edit an existing key override with flexible update options.
 
 **Usage:**
 ```bash
-./keybard-cli.js key-override edit 0 KC_B KC_C
+# Edit keys only
+./keybard-cli.js key-override edit 0 KC_A KC_B
+
+# Edit with specific properties
+./keybard-cli.js key-override edit 0 KC_A KC_B --layers 0x0003 --trigger-mods 0x01
+
+# Edit properties only (preserve existing keys)
+./keybard-cli.js key-override edit 0 --layers 0x0003 --enabled
+
+# Edit from JSON (partial updates supported)
+./keybard-cli.js key-override edit 0 --json '{"trigger_key":"KC_A","override_key":"KC_B","layers":3}'
+
+# Enable/disable existing override
+./keybard-cli.js key-override edit 0 --enabled
+./keybard-cli.js key-override edit 0 --disabled
 ```
 
 **Arguments:**
 - `<id>`: Key override ID to edit
-- `<new_trigger_key_string>`: New trigger key
-- `<new_override_key_string>`: New override behavior
+- `[new_trigger_key_string]`: New trigger key (optional)
+- `[new_override_key_string]`: New override behavior (optional)
+
+**Options:**
+- `-j, --json <json_string>`: JSON object with key override configuration (partial updates supported)
+- `-l, --layers <layers>`: Layer mask (hex or decimal)
+- `-t, --trigger-mods <mods>`: Trigger modifiers mask (hex or decimal)
+- `-n, --negative-mods <mods>`: Negative modifiers mask (hex or decimal)
+- `-s, --suppressed-mods <mods>`: Suppressed modifiers mask (hex or decimal)
+- `-o, --options <options>`: Options mask (hex or decimal)
+- `--enabled`: Enable the key override
+- `--disabled`: Disable the key override
+
+**Partial Updates:** Only specified fields are changed, others remain unchanged. This allows incremental modifications without affecting other settings.
 
 ### `key-override delete`
 
-Delete a key override by its ID (sets its keys to 0).
+Delete one or more key overrides with advanced deletion options.
 
 **Usage:**
 ```bash
+# Delete single override
 ./keybard-cli.js key-override delete 0
+
+# Delete multiple overrides
+./keybard-cli.js key-override delete 0 1 2
+
+# Delete all disabled overrides
+./keybard-cli.js key-override delete --all-disabled
+
+# Delete all empty overrides
+./keybard-cli.js key-override delete --all-empty
+
+# Skip confirmation and show verbose details
+./keybard-cli.js key-override delete 0 1 --yes --verbose
 ```
 
 **Arguments:**
-- `<id>`: Key override ID to delete
+- `<id...>`: One or more key override IDs to delete
+
+**Options:**
+- `-y, --yes`: Skip confirmation prompt
+- `--all-disabled`: Delete all disabled key overrides (ignores ID arguments)
+- `--all-empty`: Delete all empty key overrides (KC_NO keys, ignores ID arguments)
+- `-v, --verbose`: Show detailed information about deleted overrides
+
+**Safety Features:**
+- Confirmation prompts before deletion (bypass with --yes)
+- Detailed preview of what will be deleted
+- Verbose mode shows complete configuration of deleted overrides
 
 ---
 

@@ -36,11 +36,11 @@ In they Keybard UI there is a lot more information about key-overrides than what
 - Layer information
 - Options
 
-- [ ] Update `key-override list` to include all available information
-- [ ] Update `key-override get` to include all available information
-- [ ] Update `key-override add` to support setting all available information
-- [ ] Update `key-override edit` to support setting all available information
-- [ ] Update `key-override delete` to support setting all available information
+- [x] Update `key-override list` to include all available information
+- [x] Update `key-override get` to include all available information
+- [x] Update `key-override add` to support setting all available information
+- [x] Update `key-override edit` to support setting all available information
+- [x] Update `key-override delete` to support setting all available information
 
 # Testing and test-helpers.js
 

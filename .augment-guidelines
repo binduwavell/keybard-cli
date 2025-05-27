@@ -6,6 +6,7 @@
 
 # Keybard Submodule
 - The @keybard/ submodule is read-only and cannot be modified - solutions must work with the existing data structures it provides.
+- Make sure to include helpful debug logging in all commands in the event there is a problem the debug should help identify the issue.
 
 # QMK Settings
 - User prefers QMK settings to be displayed and accessed by setting name rather than numeric index for better usability.

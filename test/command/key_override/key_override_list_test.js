@@ -90,6 +90,55 @@ describe('key_overrides_list.js command tests', () => {
         assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D (enabled)')));
     });
 
+    it('should display detailed modifier and layer information in text format', async () => {
+        const keyOverrides = [
+            {
+                koid: 0,
+                trigger: "KC_A",
+                replacement: "KC_B",
+                layers: 0x0003, // Layers 0 and 1
+                trigger_mods: 0x01, // LCTL
+                negative_mod_mask: 0x02, // LSFT
+                suppressed_mods: 0x04, // LALT
+                options: 0x81 // Enabled + additional option
+            },
+            {
+                koid: 1,
+                trigger: "KC_C",
+                replacement: "KC_D",
+                layers: 0xFFFF, // All layers
+                trigger_mods: 0x88, // LGUI + RGUI (0x08 + 0x80)
+                negative_mod_mask: 0,
+                suppressed_mods: 0,
+                options: 0x00 // Disabled
+            },
+        ];
+        setupTestEnvironment({ key_overrides: keyOverrides });
+
+        await sandbox.global.runListKeyOverrides({ format: 'text' });
+
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+
+        // Check basic override info
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 0: KC_A -> KC_B (enabled)')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Override 1: KC_C -> KC_D (disabled)')));
+
+        // Check detailed information for override 0
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Layers: 0, 1')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Trigger modifiers: LCTL')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Negative modifiers: LSFT')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Suppressed modifiers: LALT')));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Options: 0x81')));
+
+        // Check detailed information for override 1
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes('Trigger modifiers: LGUI + RGUI')));
+
+        // Layers should not be shown for "all" layers
+        const outputText = testState.consoleLogOutput.join('\n');
+        const override1Section = outputText.substring(outputText.indexOf('Override 1:'));
+        assert.isFalse(override1Section.includes('Layers: all'));
+    });
+
     it('should list key overrides in JSON format to console', async () => {
         const keyOverrides = [
             { koid: 0, trigger: "KC_A", replacement: "KC_B", layers: 0xFFFF, trigger_mods: 0, negative_mod_mask: 0, suppressed_mods: 0, options: 0x80 },

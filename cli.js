@@ -440,21 +440,62 @@ keyOverrideCmd
   });
 
 keyOverrideCmd
-  .command('add <trigger_key_string> <override_key_string>')
-  .description('Add a new key override (e.g., "KC_A KC_B" to make KC_A behave as KC_B).')
-  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
+  .command('add [trigger_key_string] [override_key_string]')
+  .description('Add a new key override. Use either key arguments or JSON input.')
+  .option('-j, --json <json_string>', 'JSON object with complete key override configuration')
+  .option('-l, --layers <layers>', 'Layer mask (hex or decimal, e.g., 0x0003 for layers 0,1)', '0xFFFF')
+  .option('-t, --trigger-mods <mods>', 'Trigger modifiers mask (hex or decimal)', '0')
+  .option('-n, --negative-mods <mods>', 'Negative modifiers mask (hex or decimal)', '0')
+  .option('-s, --suppressed-mods <mods>', 'Suppressed modifiers mask (hex or decimal)', '0')
+  .option('-o, --options <options>', 'Options mask (hex or decimal, 0x80=enabled)', '0x80')
+  .option('--disabled', 'Create the key override in disabled state')
+  .addHelpText('after', `
+Examples:
+  # Basic key override
+  keybard-cli key-override add KC_A KC_B
+
+  # Key override with specific layers and modifiers
+  keybard-cli key-override add KC_A KC_B --layers 0x0003 --trigger-mods 0x01
+
+  # Key override from JSON
+  keybard-cli key-override add --json '{"trigger_key":"KC_A","override_key":"KC_B","layers":3,"trigger_mods":1,"enabled":true}'
+
+Modifier masks (can be combined with +):
+  LCTL=0x01, LSFT=0x02, LALT=0x04, LGUI=0x08
+  RCTL=0x10, RSFT=0x20, RALT=0x40, RGUI=0x80`)
   .action((triggerKeyString, overrideKeyString, options) => {
     const addKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/key_override/key_override_add.js'), 'utf8');
     vm.runInContext(addKeyOverrideScript, sandbox);
     // The script exposes runAddKeyOverride on the global object in the sandbox
     // process.exitCode will be set by runAddKeyOverride itself.
-    sandbox.global.runAddKeyOverride(triggerKeyString, overrideKeyString, options); // Pass options if any
+    sandbox.global.runAddKeyOverride(triggerKeyString, overrideKeyString, options);
   });
 
 keyOverrideCmd
-  .command('edit <id> <new_trigger_key_string> <new_override_key_string>')
-  .description('Edit an existing key override by ID (e.g., "0 KC_B KC_C" to change override 0 to KC_B -> KC_C).')
-  // .option('-some_option <value>', 'Description for a potential future option') // Example if options were needed
+  .command('edit <id> [new_trigger_key_string] [new_override_key_string]')
+  .description('Edit an existing key override by ID. Use either key arguments or JSON input.')
+  .option('-j, --json <json_string>', 'JSON object with complete key override configuration')
+  .option('-l, --layers <layers>', 'Layer mask (hex or decimal, e.g., 0x0003 for layers 0,1)')
+  .option('-t, --trigger-mods <mods>', 'Trigger modifiers mask (hex or decimal)')
+  .option('-n, --negative-mods <mods>', 'Negative modifiers mask (hex or decimal)')
+  .option('-s, --suppressed-mods <mods>', 'Suppressed modifiers mask (hex or decimal)')
+  .option('-o, --options <options>', 'Options mask (hex or decimal, 0x80=enabled)')
+  .option('--enabled', 'Enable the key override')
+  .option('--disabled', 'Disable the key override')
+  .addHelpText('after', `
+Examples:
+  # Edit keys only
+  keybard-cli key-override edit 0 KC_A KC_B
+
+  # Edit with specific layers and modifiers
+  keybard-cli key-override edit 0 KC_A KC_B --layers 0x0003 --trigger-mods 0x01
+
+  # Edit from JSON (preserves unspecified fields)
+  keybard-cli key-override edit 0 --json '{"trigger_key":"KC_A","override_key":"KC_B","layers":3}'
+
+  # Enable/disable existing override
+  keybard-cli key-override edit 0 --enabled
+  keybard-cli key-override edit 0 --disabled`)
   .action((id, newTriggerKeyString, newOverrideKeyString, options) => {
     const editKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/key_override/key_override_edit.js'), 'utf8');
     vm.runInContext(editKeyOverrideScript, sandbox);
@@ -464,14 +505,34 @@ keyOverrideCmd
   });
 
 keyOverrideCmd
-  .command('delete <id>')
-  .description('Delete a key override by its ID (e.g., "0" to delete override 0). This sets its keys to 0.')
-  .action((id, options) => { // options for future use, if any
+  .command('delete <id...>')
+  .description('Delete one or more key overrides by their IDs. This sets their keys to KC_NO.')
+  .option('-y, --yes', 'Skip confirmation prompt')
+  .option('--all-disabled', 'Delete all disabled key overrides (ignores ID arguments)')
+  .option('--all-empty', 'Delete all empty key overrides (KC_NO keys, ignores ID arguments)')
+  .option('-v, --verbose', 'Show detailed information about deleted overrides')
+  .addHelpText('after', `
+Examples:
+  # Delete single override
+  keybard-cli key-override delete 0
+
+  # Delete multiple overrides
+  keybard-cli key-override delete 0 1 2
+
+  # Delete all disabled overrides
+  keybard-cli key-override delete --all-disabled
+
+  # Delete all empty overrides
+  keybard-cli key-override delete --all-empty
+
+  # Skip confirmation
+  keybard-cli key-override delete 0 1 --yes`)
+  .action((ids, options) => {
     const deleteKeyOverrideScript = fs.readFileSync(path.resolve(__dirname, 'lib/command/key_override/key_override_delete.js'), 'utf8');
     vm.runInContext(deleteKeyOverrideScript, sandbox);
     // The script exposes runDeleteKeyOverride on the global object in the sandbox
     // process.exitCode will be set by runDeleteKeyOverride itself.
-    sandbox.global.runDeleteKeyOverride(id, options);
+    sandbox.global.runDeleteKeyOverride(ids, options);
   });
 
 // QMK-setting command group

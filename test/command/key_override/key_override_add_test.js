@@ -150,15 +150,141 @@ describe('key_override_add.js command tests', () => {
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
+    it('should add key override with custom layers and modifiers', async () => {
+        const triggerKey = "KC_A";
+        const overrideKey = "KC_B";
+        const options = {
+            layers: '0x0003', // Layers 0 and 1
+            triggerMods: '0x01', // LCTL
+            negativeMods: '0x02', // LSFT
+            suppressedMods: '0x04', // LALT
+            options: '0x81' // Enabled + additional option
+        };
+
+        await sandbox.global.runAddKeyOverride(triggerKey, overrideKey, options);
+
+        assert.deepStrictEqual(spyKeyParseCalls, [triggerKey, overrideKey]);
+        assert.ok(spyVialKeyOverridePushKbinfo, "Vial.key_override.push was not called");
+        assert.strictEqual(spyVialKeyOverridePushKoid, 0, "Vial.key_override.push was not called with correct koid");
+        const addedOverride = spyVialKeyOverridePushKbinfo.key_overrides.find(ko => ko && ko.koid === 0);
+        assert.ok(addedOverride, "Key override not found in pushed data at koid 0");
+        assert.strictEqual(addedOverride.trigger, triggerKey);
+        assert.strictEqual(addedOverride.replacement, overrideKey);
+        assert.strictEqual(addedOverride.layers, 0x0003);
+        assert.strictEqual(addedOverride.trigger_mods, 0x01);
+        assert.strictEqual(addedOverride.negative_mod_mask, 0x02);
+        assert.strictEqual(addedOverride.suppressed_mods, 0x04);
+        assert.strictEqual(addedOverride.options, 0x81);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0: KC_A -> KC_B (enabled)")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Layers: 0, 1")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Trigger modifiers: LCTL")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Negative modifiers: LSFT")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Suppressed modifiers: LALT")));
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Options: 0x81")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should add key override with disabled flag', async () => {
+        const triggerKey = "KC_A";
+        const overrideKey = "KC_B";
+        const options = { disabled: true };
+
+        await sandbox.global.runAddKeyOverride(triggerKey, overrideKey, options);
+
+        const addedOverride = spyVialKeyOverridePushKbinfo.key_overrides.find(ko => ko && ko.koid === 0);
+        assert.ok(addedOverride, "Key override not found in pushed data at koid 0");
+        assert.strictEqual(addedOverride.options, 0x00); // Disabled
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0: KC_A -> KC_B (disabled)")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should add key override from JSON input', async () => {
+        const jsonInput = JSON.stringify({
+            trigger_key: "KC_A",
+            override_key: "KC_B",
+            layers: 0x0003,
+            trigger_mods: 0x01,
+            negative_mod_mask: 0x02,
+            suppressed_mods: 0x04,
+            options: 0x81
+        });
+        const options = { json: jsonInput };
+
+        await sandbox.global.runAddKeyOverride(null, null, options);
+
+        assert.deepStrictEqual(spyKeyParseCalls, ["KC_A", "KC_B"]);
+        const addedOverride = spyVialKeyOverridePushKbinfo.key_overrides.find(ko => ko && ko.koid === 0);
+        assert.ok(addedOverride, "Key override not found in pushed data at koid 0");
+        assert.strictEqual(addedOverride.trigger, "KC_A");
+        assert.strictEqual(addedOverride.replacement, "KC_B");
+        assert.strictEqual(addedOverride.layers, 0x0003);
+        assert.strictEqual(addedOverride.trigger_mods, 0x01);
+        assert.strictEqual(addedOverride.negative_mod_mask, 0x02);
+        assert.strictEqual(addedOverride.suppressed_mods, 0x04);
+        assert.strictEqual(addedOverride.options, 0x81);
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0: KC_A -> KC_B (enabled)")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should add key override from JSON with enabled flag', async () => {
+        const jsonInput = JSON.stringify({
+            trigger_key: "KC_A",
+            override_key: "KC_B",
+            enabled: false
+        });
+        const options = { json: jsonInput };
+
+        await sandbox.global.runAddKeyOverride(null, null, options);
+
+        const addedOverride = spyVialKeyOverridePushKbinfo.key_overrides.find(ko => ko && ko.koid === 0);
+        assert.ok(addedOverride, "Key override not found in pushed data at koid 0");
+        assert.strictEqual(addedOverride.options, 0x00); // Disabled
+        assert.isTrue(testState.consoleLogOutput.some(line => line.includes("Key override successfully added with ID 0: KC_A -> KC_B (disabled)")));
+        assert.strictEqual(testState.mockProcessExitCode, 0);
+    });
+
+    it('should error with invalid JSON', async () => {
+        const options = { json: '{"invalid": json}' };
+
+        await sandbox.global.runAddKeyOverride(null, null, options);
+
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Invalid JSON:")));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
+    });
+
+    it('should error with JSON missing trigger key', async () => {
+        const jsonInput = JSON.stringify({
+            override_key: "KC_B"
+        });
+        const options = { json: jsonInput };
+
+        await sandbox.global.runAddKeyOverride(null, null, options);
+
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid JSON: JSON must contain "trigger_key" or "trigger_key_str" field')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
+    });
+
+    it('should error with JSON missing override key', async () => {
+        const jsonInput = JSON.stringify({
+            trigger_key: "KC_A"
+        });
+        const options = { json: jsonInput };
+
+        await sandbox.global.runAddKeyOverride(null, null, options);
+
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid JSON: JSON must contain "override_key" or "override_key_str" field')));
+        assert.strictEqual(testState.mockProcessExitCode, 1);
+    });
+
     it('should error if trigger key is missing', async () => {
         await sandbox.global.runAddKeyOverride(null, "KC_B", {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Trigger key and override key must be provided.")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Trigger key and override key must be provided (either as arguments or via --json).")));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if override key is missing', async () => {
         await sandbox.global.runAddKeyOverride("KC_A", undefined, {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Trigger key and override key must be provided.")));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes("Error: Trigger key and override key must be provided (either as arguments or via --json).")));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
