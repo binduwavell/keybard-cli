@@ -16,6 +16,7 @@ describe('key_override_add.js command tests', () => {
     // Spies
     let spyKeyParseCalls;
     let spyVialKeyOverridePushKbinfo;
+    let spyVialKeyOverridePushKoid;
     let spyVialKbSaveKeyOverridesCalled;
 
     // Mock implementation for KEY.parse
@@ -163,13 +164,17 @@ describe('key_override_add.js command tests', () => {
 
     it('should error if trigger key string is invalid', async () => {
         await sandbox.global.runAddKeyOverride("KC_INVALID", "KC_B", {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing key strings: Invalid trigger key string: "KC_INVALID"')));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid trigger key "KC_INVALID"')));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('The trigger key must be a valid QMK keycode')));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('https://docs.qmk.fm/#/keycodes')));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
     it('should error if override key string is invalid', async () => {
         await sandbox.global.runAddKeyOverride("KC_A", "KC_INVALID", {});
-        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error parsing key strings: Invalid override key string: "KC_INVALID"')));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('Error: Invalid override key "KC_INVALID"')));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('The override key must be a valid QMK keycode')));
+        assert.isTrue(testState.consoleErrorOutput.some(line => line.includes('https://docs.qmk.fm/#/keycodes')));
         assert.strictEqual(testState.mockProcessExitCode, 1);
     });
 
