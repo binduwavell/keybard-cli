@@ -2,6 +2,13 @@
 
 KeyBard CLI is a command-line interface for interacting with KeyBard-compatible keyboards, such as the Svalboard, without needing the GUI. It leverages the `keybard` submodule for its core functionality. KeyBard itself is companion software to the Svalboard.
 
+## Documentation
+
+This repository is thoroughly documented to assist new developers.
+- **`README.md`**: You're reading it! This file provides a comprehensive overview of the project, setup, and usage.
+- **`keybard_submodule_overview.md`**: This file provides a detailed overview of the `keybard` git submodule, explaining the purpose of its key scripts and how they contribute to the overall functionality.
+- **JSDoc Comments**: All source files in the `lib/` directory and the main `cli.js` file have complete JSDoc coverage.
+
 ## KeyBard Submodule
 
 The `keybard` directory in this repository is a git submodule. It contains the core JavaScript library that provides the underlying functionality for interacting with KeyBard-compatible devices. This submodule is essential for the CLI to function.

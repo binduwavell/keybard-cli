@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 
+/**
+ * @fileoverview This script provides a command-line interface (CLI) for interacting with Svalboard keyboards.
+ * It uses the `commander` library to define commands and subcommands for various keyboard operations,
+ * such as managing keymaps, macros, and QMK settings. The script runs in a Node.js environment and
+ * executes sandboxed JavaScript files from the `keybard` submodule to perform the actual hardware
+ * interactions.
+ */
+
 const { Blob } = require('buffer');
 const debug = require('debug')('keybard:cli');
 const fs = require('fs');
@@ -8,7 +16,13 @@ const { program } = require('commander');
 const vm = require('vm');
 const { XzReadableStream } = require('xz-decompress');
 
-
+/**
+ * The sandbox object provides a controlled environment for executing scripts from the `keybard` submodule.
+ * It includes shims for browser APIs that are not available in Node.js, such as `localStorage` and `Blob`,
+ * as well as Node.js modules like `fs` and `process` that are needed by the sandboxed scripts.
+ *
+ * @type {object}
+ */
 const sandbox = {
   global: {},
   Blob: Blob,
@@ -42,6 +56,11 @@ vm.createContext(sandbox);
 // Must be added before loading files that use it
 sandbox.debug = require('debug');
 
+/**
+ * An array of JavaScript files from the `keybard` submodule that are loaded into the sandbox.
+ * These files provide the core functionality for interacting with the keyboard.
+ * @type {string[]}
+ */
 const files = [
     'keybard/pages/js/util.js',
     'keybard/pages/js/usbutil.js',
@@ -88,7 +107,10 @@ vm.runInContext(commandUtilsScript, sandbox);
 // Add global device selection option
 program.option('-d, --device <selector>', 'Select device by index, path, or name (e.g., --device 0, --device /dev/hidraw6, --device "Manufacturer Product")');
 
-// Function to get device selector from global options
+/**
+ * Function to get device selector from global options.
+ * @returns {string} The device selector string.
+ */
 function getDeviceSelector() {
   return program.opts().device;
 }
